@@ -1,4 +1,5 @@
 import { usePage } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import React, { useState, useEffect } from 'react';
 import {
   Paintbrush,
@@ -237,11 +238,11 @@ export default function ServicesPage({ onOpenQuote }) {
                         <Button
                           variant="secondary"
                           fullWidth
-                          onClick={() => onOpenQuote({ title: service.title })}
+                          href={`/services/${service.service_id}`} inertiaLink={true}
                           icon={ArrowRight}
                           iconPosition="right"
                         >
-                          Request a Free Quote
+                          Learn More & Get Quote
                         </Button>
 
                         <a
