@@ -7,4 +7,5 @@ class Quote extends Model
 {
     use HasFactory;
     protected $guarded = [];
+    protected $casts = ['details' => 'array', 'photos' => 'array'];
 }

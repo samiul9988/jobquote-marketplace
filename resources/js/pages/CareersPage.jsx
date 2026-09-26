@@ -1,4 +1,4 @@
-import { usePage } from '@inertiajs/react';
+import { usePage, useForm } from '@inertiajs/react';
 import React, { useState, useEffect } from 'react';
 import {
   Paintbrush,
@@ -36,7 +36,7 @@ export default function CareersPage({ onOpenQuote, openings = [] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState('Experienced Painter & Decorator');
 
-  const [applicationData, setApplicationData] = useState({
+  const { data: applicationData, setData: setApplicationData, post, processing, wasSuccessful, reset } = useForm({
     name: '',
     email: '',
     phone: '',
@@ -45,7 +45,6 @@ export default function CareersPage({ onOpenQuote, openings = [] }) {
     location: 'Liverpool, UK',
     message: ''
   });
-  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -58,19 +57,24 @@ export default function CareersPage({ onOpenQuote, openings = [] }) {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setApplicationData({
-        name: '',
-        email: '',
-        phone: '',
-        role: 'Experienced Painter & Decorator',
-        experience: '3 - 5 Years',
-        location: 'Liverpool, UK',
-        message: ''
-      });
-    }, 4000);
+    
+    // Map to /contact expected fields
+    const payload = {
+      name: applicationData.name,
+      email: applicationData.email,
+      phone: applicationData.phone,
+      service: applicationData.role,
+      timeline: applicationData.experience,
+      postcode: applicationData.location,
+      message: `[CAREER APPLICATION]\n\n${applicationData.message}`
+    };
+
+    post('/contact', {
+      data: payload,
+      onSuccess: () => {
+        reset();
+      }
+    });
   };
 
   return (
@@ -325,7 +329,7 @@ export default function CareersPage({ onOpenQuote, openings = [] }) {
             }}
             className="career-form-container"
           >
-            {submitted ? (
+            {wasSuccessful ? (
               <div style={{ textAlign: 'center', padding: '40px 10px' }}>
                 <div
                   style={{

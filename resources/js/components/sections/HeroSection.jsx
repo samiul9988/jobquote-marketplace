@@ -52,8 +52,6 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
         minHeight: '880px',
         display: 'flex',
         alignItems: 'center',
-        paddingTop: '100px',
-        paddingBottom: '90px',
         overflow: 'hidden'
       }}
       className="paintters-hero-authentic"
@@ -113,18 +111,35 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.08)',
+            background: 'rgba(0, 0, 0, 0.2)',
             pointerEvents: 'none',
             zIndex: 3
           }}
         />
+
+        {/* Premium Seamless White Gradient Fade */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'linear-gradient(to right, rgba(255,255,255,1) 0%, rgba(255,255,255,0.95) 30%, rgba(255,255,255,0.5) 55%, transparent 100%)',
+            pointerEvents: 'none',
+            zIndex: 4
+          }}
+          className="hero-gradient-fade"
+        />
       </div>
 
-      <div className="container-custom" style={{ position: 'relative', zIndex: 10, width: '100%' }}>
+
+
+      <div className="container-custom" style={{ position: 'relative', zIndex: 10, width: '100%', paddingTop: '100px', paddingBottom: '90px' }}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.2fr 0.8fr',
+            gridTemplateColumns: '1fr 1fr',
             alignItems: 'center'
           }}
           className="hero-grid-authentic"
@@ -134,7 +149,6 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
             style={{
               display: 'flex',
               justifyContent: 'flex-start',
-              transform: 'translateY(-15px)'
             }}
             className="brush-badge-wrapper"
           >
@@ -143,71 +157,66 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
                 position: 'relative',
                 maxWidth: '660px',
                 width: '100%',
-                minHeight: '660px',
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 justifyContent: 'center',
-                padding: '75px 50px',
-                textAlign: 'center'
+                flexDirection: 'column',
+                textAlign: 'left',
+                padding: '40px 40px 40px 0',
+                zIndex: 10
               }}
-              className="brush-stroke-container"
+              className="content-card-wrapper"
             >
-              {/* Larger Authentic White Acrylic Brush Stroke Image */}
-              <img
-                src="/images/brush-stroke-badge.png"
-                alt="Brush Stroke Badge"
-                style={{
-                  position: 'absolute',
-                  top: '-15%',
-                  left: '-15%',
-                  width: '130%',
-                  height: '130%',
-                  objectFit: 'contain',
-                  zIndex: 1,
-                  pointerEvents: 'none',
-                  filter: 'drop-shadow(0 20px 45px rgba(0, 0, 0, 0.15))'
-                }}
-                className="brush-stroke-image"
-              />
-
-              {/* Content Inside Brush Stroke */}
+              
               <div
                 style={{
                   position: 'relative',
                   zIndex: 2,
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: 'center',
-                  maxWidth: '470px'
+                  alignItems: 'flex-start',
+                  maxWidth: '560px'
                 }}
                 className="brush-content-wrapper"
               >
+                <div style={{
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    color: 'var(--color-primary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '20px'
+                }}>
+                    Professional Painting & Decorating Services
+                </div>
+
                 {/* Official Slogan Headline */}
                 <h1
                   style={{
-                    fontSize: '48px',
+                    fontSize: '64px',
                     fontWeight: '900',
                     color: 'var(--color-primary)',
                     lineHeight: '1.1',
-                    marginBottom: '16px',
+                    marginBottom: '24px',
                     fontFamily: 'var(--font-heading)',
-                    letterSpacing: '-0.5px'
+                    letterSpacing: '-1px'
                   }}
                   className="brush-hero-title"
                 >
                   Built on Trust,<br />
-                  <span style={{ color: 'var(--color-secondary)' }}>Finished with Excellence.</span>
+                  <span style={{ color: 'var(--color-secondary)' }}>Finished with <br className="hidden-mobile"/> Excellence.</span>
                 </h1>
 
                 {/* Subtitle Paragraph */}
                 <p
                   style={{
-                    fontSize: '14px',
+                    fontSize: '18px',
                     color: '#475569',
                     lineHeight: '1.65',
-                    marginBottom: '24px',
+                    marginBottom: '40px',
                     fontWeight: '500',
-                    textAlign: 'center'
+                    textAlign: 'left',
+                    maxWidth: '480px'
                   }}
                   className="brush-hero-desc"
                 >
@@ -219,8 +228,8 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '12px',
+                    justifyContent: 'flex-start',
+                    gap: '16px',
                     flexWrap: 'wrap',
                     marginBottom: '24px'
                   }}
@@ -230,11 +239,14 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
                   <button
                     onClick={onOpenQuote}
                     style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
                       backgroundColor: 'var(--color-secondary)',
                       color: '#FFFFFF',
-                      fontSize: '15px',
+                      fontSize: '16px',
                       fontWeight: '700',
-                      padding: '14px 32px',
+                      padding: '16px 36px',
                       borderRadius: '9999px',
                       boxShadow: '0 8px 22px rgba(242, 101, 34, 0.4)',
                       transition: 'all 0.3s ease',
@@ -252,6 +264,7 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
                       e.currentTarget.style.boxShadow = '0 8px 22px rgba(242, 101, 34, 0.4)';
                     }}
                   >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                     {heroData_dyn.primaryBtnText}
                   </button>
 
@@ -259,60 +272,31 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
                   <a
                     href="#services"
                     style={{
-                      backgroundColor: 'var(--color-primary-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      backgroundColor: '#FFFFFF',
                       color: 'var(--color-primary)',
-                      fontSize: '15px',
+                      fontSize: '16px',
                       fontWeight: '700',
-                      padding: '14px 28px',
+                      padding: '16px 36px',
                       borderRadius: '9999px',
-                      border: '1.5px solid var(--color-border)',
+                      border: '1.5px solid var(--color-primary)',
                       transition: 'all 0.3s ease',
                       textDecoration: 'none',
-                      display: 'inline-block'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                      e.currentTarget.style.color = '#FFFFFF';
+                      e.currentTarget.style.backgroundColor = '#f8fafc';
                       e.currentTarget.style.transform = 'translateY(-2px)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
-                      e.currentTarget.style.color = 'var(--color-primary)';
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path><path d="M9 11a5 5 0 1 0 5 5"></path><line x1="12" y1="16" x2="12" y2="22"></line><line x1="12" y1="16" x2="6" y2="16"></line></svg>
                     {heroData_dyn.secondaryBtnText}
                   </a>
-                </div>
-
-                {/* 4 Quick Trust Indicators (No fake stats) */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '8px 12px',
-                    width: '100%',
-                    paddingTop: '16px',
-                    borderTop: '1px dashed #E2E8F0'
-                  }}
-                  className="hero-trust-grid"
-                >
-                  {heroData_dyn.trustIndicators.map((item, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        color: 'var(--color-primary)'
-                      }}
-                    >
-                      <CheckCircle2 size={15} style={{ color: 'var(--color-secondary)', flexShrink: 0 }} />
-                      <span style={{ whiteSpace: 'nowrap' }}>{item}</span>
-                    </div>
-                  ))}
                 </div>
 
               </div>
@@ -329,7 +313,7 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
         <div
           style={{
             position: 'absolute',
-            bottom: '-40px',
+            bottom: '40px',
             right: '24px',
             display: 'flex',
             alignItems: 'center',
@@ -384,161 +368,60 @@ export default function HeroSection({ onOpenQuote, heroImages = [] }) {
             grid-template-columns: 1fr !important;
           }
           .brush-badge-wrapper {
-            justify-content: center !important;
+            justify-content: flex-start !important;
             transform: translateY(0) !important;
           }
           .paintters-hero-authentic {
             min-height: 860px !important;
             min-height: 90vh !important;
-            padding-top: 130px !important;
-            padding-bottom: 80px !important;
           }
           .brush-hero-title {
-            font-size: 34px !important;
+            font-size: 48px !important;
           }
-          .brush-stroke-container {
-            max-width: 580px !important;
-            min-height: 580px !important;
-            padding: 65px 35px !important;
+          .hero-gradient-fade {
+            background: linear-gradient(to right, rgba(255,255,255,1) 0%, rgba(255,255,255,0.95) 45%, rgba(255,255,255,0.8) 75%, transparent 100%) !important;
           }
-          .brush-stroke-image {
-            top: -12% !important;
-            left: -14% !important;
-            width: 128% !important;
-            height: 124% !important;
-            object-fit: fill !important;
-          }
-          .hero-slider-dots {
-            bottom: 20px !important;
-            right: 50% !important;
-            transform: translateX(50%) !important;
+          .content-card-wrapper {
+            max-width: 100% !important;
+            padding: 40px 20px 40px 0 !important;
           }
         }
         @media (max-width: 640px) {
+          .hero-gradient-fade {
+            background: linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(255,255,255,0.95) 55%, rgba(255,255,255,0) 100%) !important;
+          }
           .paintters-hero-authentic {
             min-height: 820px !important;
             min-height: 92vh !important;
-            padding-top: 120px !important;
-            padding-bottom: 70px !important;
           }
-          .brush-stroke-container {
-            max-width: 92% !important;
-            min-height: 520px !important;
-            padding: 60px 24px 50px !important;
-            margin: 0 auto !important;
-          }
-          .brush-stroke-image {
-            top: -10% !important;
-            left: -16% !important;
-            width: 132% !important;
-            height: 122% !important;
-            object-fit: fill !important;
+          .content-card-wrapper {
+            padding: 30px 10px 30px 0 !important;
           }
           .brush-hero-title {
-            font-size: 28px !important;
+            font-size: 38px !important;
             line-height: 1.16 !important;
             margin-bottom: 12px !important;
           }
           .brush-hero-desc {
-            font-size: 13.5px !important;
+            font-size: 16px !important;
             line-height: 1.5 !important;
+            margin-bottom: 24px !important;
+          }
+          .hero-buttons-wrapper {
+            gap: 12px !important;
             margin-bottom: 18px !important;
-          }
-          .hero-buttons-wrapper {
-            gap: 10px !important;
-            margin-bottom: 18px !important;
-          }
-          .hero-buttons-wrapper button,
-          .hero-buttons-wrapper a {
-            padding: 12px 24px !important;
-            font-size: 14px !important;
-          }
-          .hero-trust-grid {
-            grid-template-columns: 1fr 1fr !important;
-            gap: 6px 10px !important;
-            padding-top: 14px !important;
-          }
-        }
-        @media (max-width: 480px) {
-          .paintters-hero-authentic {
-            min-height: 800px !important;
-            min-height: 92vh !important;
-            padding-top: 115px !important;
-            padding-bottom: 65px !important;
-          }
-          .brush-stroke-container {
-            max-width: 95% !important;
-            min-height: 500px !important;
-            padding: 55px 18px 45px !important;
-          }
-          .brush-stroke-image {
-            top: -9% !important;
-            left: -14% !important;
-            width: 128% !important;
-            height: 120% !important;
-            object-fit: fill !important;
-          }
-          .brush-hero-title {
-            font-size: 25px !important;
-            line-height: 1.18 !important;
-            margin-bottom: 10px !important;
-          }
-          .brush-hero-desc {
-            font-size: 12.5px !important;
-            line-height: 1.48 !important;
-            margin-bottom: 15px !important;
-          }
-          .hero-buttons-wrapper {
-            gap: 8px !important;
-            margin-bottom: 14px !important;
-          }
-          .hero-buttons-wrapper button,
-          .hero-buttons-wrapper a {
-            padding: 11px 20px !important;
-            font-size: 13px !important;
-          }
-          .hero-trust-grid {
-            grid-template-columns: 1fr 1fr !important;
-            gap: 6px 6px !important;
-            padding-top: 12px !important;
-          }
-          .hero-trust-grid div {
-            font-size: 11px !important;
-          }
-        }
-        @media (max-width: 360px) {
-          .paintters-hero-authentic {
-            min-height: 760px !important;
-            min-height: 94vh !important;
-            padding-top: 100px !important;
-            padding-bottom: 50px !important;
-          }
-          .brush-stroke-container {
-            max-width: 98% !important;
-            padding: 48px 14px 38px !important;
-          }
-          .brush-stroke-image {
-            top: -8% !important;
-            left: -12% !important;
-            width: 124% !important;
-            height: 118% !important;
-            object-fit: fill !important;
-          }
-          .brush-hero-title {
-            font-size: 22px !important;
-          }
-          .brush-hero-desc {
-            font-size: 11.5px !important;
-          }
-          .hero-buttons-wrapper {
             flex-direction: column !important;
-            width: 100% !important;
+            align-items: stretch !important;
           }
           .hero-buttons-wrapper button,
           .hero-buttons-wrapper a {
             width: 100% !important;
-            text-align: center !important;
             justify-content: center !important;
+            padding: 14px 24px !important;
+            font-size: 15px !important;
+          }
+          .hidden-mobile {
+            display: none !important;
           }
         }
       `}</style>

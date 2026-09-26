@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FrontendController;
 use App\Http\Controllers\AuthController;
@@ -12,8 +12,11 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\HeroImageController;
 use App\Http\Controllers\FaqController;
+use App\Http\Controllers\ProfileController;
 
 Route::post('/quotes', [QuoteController::class, 'store']);
+Route::post('/find-tradesperson', [QuoteController::class, 'storeTrade']);
+Route::get('/find-tradesperson', fn () => \Inertia\Inertia::render('FindTradespersonPage'));
 Route::post('/contact', [ContactMessageController::class, 'store']);
 Route::post('/reviews', [ReviewController::class, 'store']);
 
@@ -59,6 +62,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/dashboard/settings', [SettingController::class, 'update']);
     Route::post('/dashboard/about', [SettingController::class, 'updateAbout']);
     Route::post('/dashboard/home', [SettingController::class, 'updateHome']);
+
+    // Admin Profile
+    Route::post('/dashboard/profile', [ProfileController::class, 'updateProfile']);
+    Route::post('/dashboard/profile/password', [ProfileController::class, 'updatePassword']);
 
     // Gallery CMS
     

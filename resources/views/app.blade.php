@@ -9,7 +9,7 @@
         @if($favicon)
             <link rel="icon" href="{{ $favicon }}" />
         @endif
-    <title>SK Hour - Laravel Inertia</title>
+    <title>SK Home Solutions</title>
     @viteReactRefresh
     @vite(['resources/js/app.jsx', 'resources/js/index.css'])
     @inertiaHead

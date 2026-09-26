@@ -1,0 +1,17 @@
+{
+  "resources/js/app.jsx": {
+    "file": "assets/app-BdsuuH_s.js",
+    "name": "app",
+    "src": "resources/js/app.jsx",
+    "isEntry": true
+  },
+  "resources/js/index.css": {
+    "file": "assets/index-DtrlKCuT.css",
+    "name": "index",
+    "names": [
+      "index.css"
+    ],
+    "src": "resources/js/index.css",
+    "isEntry": true
+  }
+}

@@ -1,0 +1,7 @@
+[29-Aug-2026 13:53:21 UTC] PHP Fatal error:  Uncaught RuntimeException: Composer detected issues in your platform: Your Composer dependencies require a PHP version ">= 8.4.1". You are running 8.2.33. in /home/skhohgeg/public_html/vendor/composer/platform_check.php:22
+Stack trace:
+#0 /home/skhohgeg/public_html/vendor/composer/autoload_real.php(25): require()
+#1 /home/skhohgeg/public_html/vendor/autoload.php(22): ComposerAutoloaderInitcda2add6397422fb1a2eb5b9207f1575::getLoader()
+#2 /home/skhohgeg/public_html/index.php(14): require('/home/skhohgeg/...')
+#3 {main}
+  thrown in /home/skhohgeg/public_html/vendor/composer/platform_check.php on line 22

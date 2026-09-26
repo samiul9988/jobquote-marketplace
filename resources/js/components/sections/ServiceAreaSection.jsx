@@ -1,10 +1,17 @@
 import React from 'react';
+import { usePage } from '@inertiajs/react';
 import { MapPin, Navigation, CheckCircle2, ArrowRight } from 'lucide-react';
 import Button from '../common/Button';
 import ScrollReveal from '../common/ScrollReveal';
 import { serviceAreas } from '../../data/siteData';
 
 export default function ServiceAreaSection({ onOpenQuote }) {
+  const { settings = {} } = usePage().props;
+  
+  // Parse coverage locations from comma-separated string
+  const coverageLocations = settings.service_area_locations 
+    ? settings.service_area_locations.split(',').map(item => item.trim()).filter(item => item !== '')
+    : [];
   return (
     <section style={{ padding: '90px 0', backgroundColor: 'var(--color-light)' }}>
       <div className="container-custom">
@@ -46,40 +53,42 @@ export default function ServiceAreaSection({ onOpenQuote }) {
               </div>
 
               <h3 style={{ fontSize: '32px', fontWeight: '800', color: 'var(--color-primary)', marginBottom: '14px' }}>
-                Proudly Serving Liverpool & Surrounding Districts
+                {settings.service_area_title || 'Proudly Serving Liverpool & Surrounding Districts'}
               </h3>
 
               <p style={{ fontSize: '15px', color: 'var(--color-text-muted)', lineHeight: '1.7', marginBottom: '28px' }}>
-                {serviceAreas.note} Based at 21 Alexander Road, Liverpool (L22 1RJ), we provide prompt, reliable home improvement and property services across:
+                {settings.service_area_desc || `${serviceAreas.note} Based at 21 Alexander Road, Liverpool (L22 1RJ), we provide prompt, reliable home improvement and property services across:`}
               </p>
 
               {/* Coverage Grid */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                  marginBottom: '32px'
-                }}
-                className="coverage-tags-grid"
-              >
-                {serviceAreas.coverage.map((area, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: 'var(--color-text-main)'
-                    }}
-                  >
-                    <CheckCircle2 size={16} style={{ color: 'var(--color-secondary)', flexShrink: 0 }} />
-                    <span>{area}</span>
-                  </div>
-                ))}
-              </div>
+              {coverageLocations.length > 0 && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '12px',
+                    marginBottom: '32px'
+                  }}
+                  className="coverage-tags-grid"
+                >
+                  {coverageLocations.map((area, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: 'var(--color-text-main)'
+                      }}
+                    >
+                      <CheckCircle2 size={16} style={{ color: 'var(--color-secondary)', flexShrink: 0 }} />
+                      <span>{area}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* CTA */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -129,11 +138,11 @@ export default function ServiceAreaSection({ onOpenQuote }) {
               </div>
 
               <h4 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '8px' }}>
-                Local Liverpool Trades
+                {settings.service_area_card_title || 'Local Liverpool Trades'}
               </h4>
 
               <p style={{ fontSize: '14px', color: '#CBD5E1', lineHeight: '1.6', marginBottom: '20px' }}>
-                Fast response times, local know-how, and dependable scheduling for homeowners and landlords.
+                {settings.service_area_card_desc || 'Fast response times, local know-how, and dependable scheduling for homeowners and landlords.'}
               </p>
 
               <div
@@ -146,7 +155,7 @@ export default function ServiceAreaSection({ onOpenQuote }) {
                   color: '#FFFFFF'
                 }}
               >
-                📍 L22 1RJ, Liverpool, UK
+                📍 {settings.service_area_card_pin || 'L22 1RJ, Liverpool, UK'}
               </div>
             </div>
 

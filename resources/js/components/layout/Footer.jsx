@@ -245,6 +245,10 @@ export default function Footer({ onOpenQuote }) {
                     style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}
                     onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-secondary)')}
                     onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                    href={`tel:${(settings.phone || siteInfo.phone).replace(/\s+/g, '')}`}
+                    style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-secondary)')}
+                    onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
                   >
                     {(settings.phone || siteInfo.phoneDisplay)}
                   </a>
@@ -271,7 +275,10 @@ export default function Footer({ onOpenQuote }) {
           className="footer-bottom-bar"
         >
           <div>
-            Copyright © {new Date().getFullYear()} <strong>SK Home Solutions</strong>. All Rights Reserved.
+            Copyright © {new Date().getFullYear()} <strong>SK Home Solutions</strong>. All Rights Reserved.<br />
+            <span style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', display: 'inline-block' }}>
+              Developed by <a href="https://arbeittechnology.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-secondary)', textDecoration: 'none', fontWeight: '600' }}>Arbeit Technology</a>
+            </span>
           </div>
 
           <div style={{ display: 'flex', gap: '20px' }}>

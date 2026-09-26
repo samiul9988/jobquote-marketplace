@@ -6,15 +6,15 @@ import { processSteps } from '../../data/siteData';
 
 export default function ProcessSection() {
   const { settings = {} } = usePage().props;
-  const dynSteps = [1,2,3,4].map(n => ({
-    step: settings[`home_step${n}_num`] || (processSteps[n-1] ? processSteps[n-1].step : '0'+n),
-    title: settings[`home_step${n}_title`] || (processSteps[n-1] ? processSteps[n-1].title : ''),
-    description: settings[`home_step${n}_desc`] || (processSteps[n-1] ? processSteps[n-1].description : ''),
+  const dynSteps = [1, 2, 3, 4].map(n => ({
+    step: settings[`home_step${n}_num`] || (processSteps[n - 1] ? processSteps[n - 1].step : '0' + n),
+    title: settings[`home_step${n}_title`] || (processSteps[n - 1] ? processSteps[n - 1].title : ''),
+    description: settings[`home_step${n}_desc`] || (processSteps[n - 1] ? processSteps[n - 1].description : ''),
   }));
   return (
     <section style={{ padding: '100px 0', backgroundColor: 'var(--color-dark)', color: '#FFFFFF' }}>
       <div className="container-custom">
-        
+
         {/* Section Header */}
         <ScrollReveal animation="fade-up">
           <SectionHeader
@@ -22,7 +22,7 @@ export default function ProcessSection() {
             title="Simple, Transparent 4-Step Process"
             description="From initial contact to the completed job, we make hiring trusted trades straightforward and stress-free."
             align="center"
-            isDark={true}
+            light={true}
           />
         </ScrollReveal>
 

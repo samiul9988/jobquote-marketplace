@@ -1,3 +1,4 @@
+import { useForm } from '@inertiajs/react';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export default function JobApplyModal({ isOpen, onClose, preselectedRole }) {
-  const [formData, setFormData] = useState({
+  const { data: formData, setData: setFormData, post, processing: isSubmitting, wasSuccessful, reset } = useForm({
     name: '',
     email: '',
     phone: '',
@@ -27,11 +28,10 @@ export default function JobApplyModal({ isOpen, onClose, preselectedRole }) {
   });
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (preselectedRole) {
-      setFormData((prev) => ({ ...prev, role: preselectedRole }));
+      setFormData('role', preselectedRole);
     }
   }, [preselectedRole]);
 
@@ -57,33 +57,36 @@ export default function JobApplyModal({ isOpen, onClose, preselectedRole }) {
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setFormData({ ...formData, fileName: e.target.files[0].name });
+      setFormData('fileName', e.target.files[0].name);
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    
+    // Map to /contact expected fields
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      service: formData.role,
+      timeline: formData.experience,
+      postcode: formData.location,
+      message: `[CAREER APPLICATION]\nTools: ${formData.hasTools}\n\n${formData.message}`
+    };
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSubmitted(true);
-    }, 800);
+    post('/contact', {
+      data: payload,
+      onSuccess: () => {
+        setIsSubmitted(true);
+        reset();
+      }
+    });
   };
 
   const handleResetAndClose = () => {
     setIsSubmitted(false);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      role: preselectedRole || 'Experienced Painter & Decorator',
-      experience: '3 - 5 Years',
-      location: '',
-      hasTools: 'Yes, full tool kit & transport',
-      message: '',
-      fileName: ''
-    });
+    reset();
     onClose();
   };
 

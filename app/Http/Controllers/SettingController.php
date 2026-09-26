@@ -53,5 +53,16 @@ class SettingController extends Controller
 
         return back()->with('about_success', 'About page content updated!');
     }
+
+    public function updateHome(Request $request)
+    {
+        $data = $request->except(['_token']);
+        
+        foreach ($data as $key => $value) {
+            Setting::updateOrCreate(['key' => $key], ['value' => $value ?? '']);
+        }
+
+        return back()->with('home_success', 'Home page content updated!');
+    }
 }
 

@@ -18,6 +18,7 @@ import {
   FolderKanban,
   FileText,
   Users,
+  User,
   Eye,
   TrendingUp,
   PieChart,
@@ -31,10 +32,17 @@ import {
   Star
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
+import InvoiceGenerator from '../components/admin/InvoiceGenerator';
 
 export default function DashboardPage({ quotes = [], messages = [], jobPosts = [], reviews = [], projects = [], services = [], heroImages = [], faqs = [] }) {
   const navigate = router.visit;
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('adminDashboardTab') || 'overview';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('adminDashboardTab', activeTab);
+  }, [activeTab]);
   const { settings = {} } = usePage().props;
   const [faviconPreview, setFaviconPreview] = useState(settings.site_favicon || null);
   const settingsForm = useForm({
@@ -352,6 +360,12 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     home_step1_num: settings.home_step1_num || '01', home_step1_title: settings.home_step1_title || '', home_step1_desc: settings.home_step1_desc || '',
     home_step2_num: settings.home_step2_num || '02', home_step2_title: settings.home_step2_title || '', home_step2_desc: settings.home_step2_desc || '',
     home_step3_num: settings.home_step3_num || '03', home_step3_title: settings.home_step3_title || '', home_step3_desc: settings.home_step3_desc || '',
+    service_area_title: settings.service_area_title || 'Proudly Serving Liverpool & Surrounding Districts',
+    service_area_desc: settings.service_area_desc || 'Based at 21 Alexander Road, Liverpool (L22 1RJ), we provide prompt, reliable home improvement and property services across:',
+    service_area_locations: settings.service_area_locations || 'Liverpool City Centre, Crosby & Waterloo, Formby & Southport, Allerton & Aigburth, Bootle & Sefton, Wirral & Surrounding Areas',
+    service_area_card_title: settings.service_area_card_title || 'Local Liverpool Trades',
+    service_area_card_desc: settings.service_area_card_desc || 'Fast response times, local know-how, and dependable scheduling for homeowners and landlords.',
+    service_area_card_pin: settings.service_area_card_pin || 'L22 1RJ, Liverpool, UK',
     home_step4_num: settings.home_step4_num || '04', home_step4_title: settings.home_step4_title || '', home_step4_desc: settings.home_step4_desc || '',
     home_faq1_q: settings.home_faq1_q || '', home_faq1_a: settings.home_faq1_a || '',
     home_faq2_q: settings.home_faq2_q || '', home_faq2_a: settings.home_faq2_a || '',
@@ -471,6 +485,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+
     { id: 'home', label: 'Home Page CMS', icon: HomeIcon },
     { id: 'about', label: 'About Us CMS', icon: Info },
     { id: 'services', label: 'Services CMS', icon: Wrench },
@@ -478,7 +493,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     { id: 'careers', label: 'Careers CMS', icon: Briefcase },
     { id: 'settings', label: 'Global Settings', icon: Settings },
     { id: 'inbox', label: 'Inbox & Quotes', icon: Inbox },
-      { id: 'reviews_cms', label: 'Reviews CMS', icon: Star },
+    { id: 'reviews_cms', label: 'Reviews CMS', icon: Star },
+    { id: 'invoices', label: 'Invoice Generator', icon: FileText },
   ];
 
   // --- MOCK CHARTS ---
@@ -545,6 +561,97 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   );
 
   // --- RENDER TABS ---
+  
+  const profileForm = useForm({
+    name: usePage().props.auth.user.name,
+    email: usePage().props.auth.user.email,
+    avatar: null,
+  });
+  const userAvatar = usePage().props.auth.user.avatar;
+
+  const passwordForm = useForm({
+    current_password: '',
+    password: '',
+    password_confirmation: '',
+  });
+
+  const handleProfileSubmit = (e) => {
+    e.preventDefault();
+    profileForm.post('/dashboard/profile', { preserveScroll: true });
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    passwordForm.post('/dashboard/profile/password', {
+      preserveScroll: true,
+      onSuccess: () => passwordForm.reset(),
+    });
+  };
+
+  const renderProfile = () => (
+    <div className="admin-panel-section">
+      <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', marginBottom: '24px' }}>Admin Profile</h2>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px' }}>
+        {/* Profile Info Form */}
+        <div style={{ backgroundColor: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E2E8F0', height: 'fit-content' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px', color: 'var(--color-primary)' }}>Account Information</h3>
+          <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#0F172A' }}>Profile Picture</label>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                {userAvatar && (
+                  <img src={userAvatar} alt="Profile" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />
+                )}
+                <input type="file" accept="image/*" onChange={e => profileForm.setData('avatar', e.target.files[0])} style={{ padding: '8px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px', width: '100%' }} />
+              </div>
+              {profileForm.errors.avatar && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{profileForm.errors.avatar}</div>}
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#0F172A' }}>Full Name</label>
+              <input type="text" required value={profileForm.data.name} onChange={e => profileForm.setData('name', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '15px' }} />
+              {profileForm.errors.name && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{profileForm.errors.name}</div>}
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#0F172A' }}>Email Address</label>
+              <input type="email" required value={profileForm.data.email} onChange={e => profileForm.setData('email', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '15px' }} />
+              {profileForm.errors.email && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{profileForm.errors.email}</div>}
+            </div>
+            <button type="submit" disabled={profileForm.processing} style={{ marginTop: '12px', padding: '14px 24px', backgroundColor: 'var(--color-primary)', color: '#FFF', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '15px', transition: 'all 0.2s' }}>
+              {profileForm.processing ? 'Saving...' : 'Update Information'}
+            </button>
+            {profileForm.recentlySuccessful && <p style={{ color: '#10B981', fontSize: '14px', margin: 0, fontWeight: '600' }}>✓ Profile information updated successfully.</p>}
+          </form>
+        </div>
+
+        {/* Password Form */}
+        <div style={{ backgroundColor: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E2E8F0', height: 'fit-content' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px', color: 'var(--color-primary)' }}>Change Password</h3>
+          <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#0F172A' }}>Current Password</label>
+              <input type="password" required value={passwordForm.data.current_password} onChange={e => passwordForm.setData('current_password', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '15px' }} />
+              {passwordForm.errors.current_password && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{passwordForm.errors.current_password}</div>}
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#0F172A' }}>New Password</label>
+              <input type="password" required value={passwordForm.data.password} onChange={e => passwordForm.setData('password', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '15px' }} />
+              {passwordForm.errors.password && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{passwordForm.errors.password}</div>}
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#0F172A' }}>Confirm New Password</label>
+              <input type="password" required value={passwordForm.data.password_confirmation} onChange={e => passwordForm.setData('password_confirmation', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '15px' }} />
+            </div>
+            <button type="submit" disabled={passwordForm.processing} style={{ marginTop: '12px', padding: '14px 24px', backgroundColor: 'var(--color-secondary)', color: '#FFF', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '15px', transition: 'all 0.2s' }}>
+              {passwordForm.processing ? 'Saving...' : 'Update Password'}
+            </button>
+            {passwordForm.recentlySuccessful && <p style={{ color: '#10B981', fontSize: '14px', margin: 0, fontWeight: '600' }}>✓ Password changed successfully.</p>}
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderOverview = () => (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -1083,6 +1190,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           }} />
         </div>
 
+
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
           <button type="submit" disabled={settingsForm.processing} style={{ padding: '12px 24px', backgroundColor: 'var(--color-primary)', color: '#FFF', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '15px' }}>
             <Save size={18} /> {settingsForm.processing ? 'Saving...' : 'Save Settings'}
@@ -1093,7 +1202,13 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   );
 
   const renderInbox = () => {
-    const activeList = inboxSubTab === 'quotes' ? quotes : messages;
+    const generalMessages = messages.filter(m => !m.message?.startsWith('[CAREER APPLICATION]'));
+    const careerMessages = messages.filter(m => m.message?.startsWith('[CAREER APPLICATION]'));
+
+    let activeList = quotes;
+    if (inboxSubTab === 'messages') activeList = generalMessages;
+    else if (inboxSubTab === 'careers') activeList = careerMessages;
+
     const selectedId = inboxSubTab === 'quotes' ? selectedQuoteId : selectedMessageId;
     const setSelectedId = inboxSubTab === 'quotes' ? setSelectedQuoteId : setSelectedMessageId;
     const selectedItem = activeList.find(item => item.id === selectedId) || activeList[0];
@@ -1142,7 +1257,24 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                 transition: 'all 0.2s'
               }}
             >
-              General Contact ({messages.length})
+              General Contact ({generalMessages.length})
+            </button>
+            <button
+              onClick={() => setInboxSubTab('careers')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '700',
+                fontSize: '13px',
+                backgroundColor: inboxSubTab === 'careers' ? '#FFFFFF' : 'transparent',
+                color: inboxSubTab === 'careers' ? '#059669' : '#64748B',
+                boxShadow: inboxSubTab === 'careers' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              Career Applications ({careerMessages.length})
             </button>
           </div>
         </div>
@@ -1184,7 +1316,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                         borderBottom: '1px solid #E2E8F0',
                         cursor: 'pointer',
                         backgroundColor: isActive ? '#FFFFFF' : 'transparent',
-                        borderLeft: isActive ? `4px solid ${inboxSubTab === 'quotes' ? 'var(--color-secondary)' : 'var(--color-primary)'}` : '4px solid transparent',
+                        borderLeft: isActive ? `4px solid ${inboxSubTab === 'quotes' ? 'var(--color-secondary)' : inboxSubTab === 'careers' ? '#059669' : 'var(--color-primary)'}` : '4px solid transparent',
                         transition: 'all 0.15s ease'
                       }}
                       onMouseOver={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = '#F1F5F9'; }}
@@ -1196,7 +1328,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                       </div>
                       
                       <div style={{ fontSize: '12px', color: '#64748B', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', marginBottom: '8px' }}>
-                        {inboxSubTab === 'quotes' ? item.service : (item.subject || 'General Inquiry')}
+                        {(inboxSubTab === 'quotes' || inboxSubTab === 'careers') ? item.service : (item.subject || 'General Inquiry')}
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1230,8 +1362,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                       width: '48px',
                       height: '48px',
                       borderRadius: '50%',
-                      backgroundColor: inboxSubTab === 'quotes' ? 'var(--color-secondary-light)' : 'var(--color-primary-light)',
-                      color: inboxSubTab === 'quotes' ? 'var(--color-secondary)' : 'var(--color-primary)',
+                      backgroundColor: inboxSubTab === 'quotes' ? 'var(--color-secondary-light)' : inboxSubTab === 'careers' ? '#D1FAE5' : 'var(--color-primary-light)',
+                      color: inboxSubTab === 'quotes' ? 'var(--color-secondary)' : inboxSubTab === 'careers' ? '#059669' : 'var(--color-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1591,6 +1723,20 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
             ))}
           </>)}
 
+          {/* Service Area Section */}
+          {card('Section 5.5 - Service Area', <>
+            <div style={{ display: 'grid', gap: '16px' }}>
+              {hf('Section Title', 'service_area_title')}
+              {hf('Section Description', 'service_area_desc', true, 3)}
+              {hf('Coverage Locations (Comma Separated)', 'service_area_locations')}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {hf('Blue Card Title', 'service_area_card_title')}
+                {hf('Blue Card Location Pin', 'service_area_card_pin')}
+              </div>
+              {hf('Blue Card Description', 'service_area_card_desc', true, 2)}
+            </div>
+          </>)}
+
           {/* FAQs (4) */}
           {card('Section 6 � FAQs (4 Questions)', <>
             {[1,2,3,4].map(n => (
@@ -1757,6 +1903,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   const renderContent = () => {
     switch (activeTab) {
       case 'overview': return renderOverview();
+      case 'profile': return renderProfile();
       case 'home': return renderHomeCMS();
       case 'about': return renderAboutCMS();
       case 'services': return renderServicesCMS();
@@ -1766,6 +1913,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       case 'gallery': return renderGalleryCMS();
       case 'inbox': return renderInbox();
       case 'reviews_cms': return renderReviewsControl();
+      case 'invoices': return <InvoiceGenerator settings={settings} />;
       default: return renderOverview();
     }
   };
@@ -1970,13 +2118,22 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
               )}
             </div>
 
-            <div style={{ width: '40px', height: '40px', backgroundColor: '#242D8A', color: '#FFFFFF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '14px' }}>
-              AD
-            </div>
+            <div 
+              style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }}
+              onClick={() => setActiveTab('profile')}
+            >
+              {usePage().props.auth.user.avatar ? (
+                <img src={usePage().props.auth.user.avatar} alt="Admin" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: '40px', height: '40px', backgroundColor: '#242D8A', color: '#FFFFFF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '14px' }}>
+                  AD
+                </div>
+              )}
 
-            <div>
-              <p style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: '0 0 2px 0' }}>Admin Portal</p>
-              <p style={{ fontSize: '12px', color: '#64748B', margin: 0, fontWeight: '600' }}>Manager Access</p>
+              <div>
+                <p style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: '0 0 2px 0' }}>Admin Portal</p>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: 0, fontWeight: '600' }}>Manager Access</p>
+              </div>
             </div>
           </div>
         </header>
