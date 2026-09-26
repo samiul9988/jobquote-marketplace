@@ -1398,6 +1398,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                 <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
                   {/* Lead Metadata Info Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                    {!(inboxSubTab === 'quotes' && selectedItem.details) && (
+                      <>
                     <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
                       <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Email Address</span>
                       <a href={"mailto:" + selectedItem.email} style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}>{selectedItem.email}</a>
@@ -1407,7 +1409,25 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                       <a href={"tel:" + selectedItem.phone} style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', textDecoration: 'none' }}>{selectedItem.phone || 'N/A'}</a>
                     </div>
                     
-                    {inboxSubTab === 'quotes' ? (
+                      </>
+                    )}
+
+                    {inboxSubTab === 'quotes' && selectedItem.details ? (
+                      <>
+                        <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                          <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Trade Category</span>
+                          <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{selectedItem.service}</span>
+                        </div>
+                        <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                          <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Work Type</span>
+                          <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{String(Object.values(selectedItem.details)[0] ?? 'N/A')}</span>
+                        </div>
+                        <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                          <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Steps / Photos</span>
+                          <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{Object.keys(selectedItem.details).length} steps · {(selectedItem.photos || []).length} photos</span>
+                        </div>
+                      </>
+                    ) : inboxSubTab === 'quotes' ? (
                       <>
                         <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
                           <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Service Requested</span>
@@ -1436,7 +1456,44 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     )}
                   </div>
 
-                  {/* Message Body Block */}
+                  {inboxSubTab === 'quotes' && selectedItem.details ? (
+                    <div>
+                      <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                        Step-by-Step Answers
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                        {Object.entries(selectedItem.details).map(([q, ans], i) => (
+                          <div key={q} style={{ display: 'flex', gap: '14px', padding: '14px 16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF' }}>
+                            <span style={{ width: '26px', height: '26px', borderRadius: '50%', backgroundColor: 'var(--color-secondary)', color: '#FFF', fontSize: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                            <div>
+                              <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '600', marginBottom: '4px' }}>{q}</div>
+                              <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: '700' }}>{Array.isArray(ans) ? ans.join(', ') : String(ans)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                        Job Description
+                      </h4>
+                      <div style={{ fontSize: '15px', color: '#334155', lineHeight: '1.7', whiteSpace: 'pre-wrap', backgroundColor: '#FAFAFA', padding: '20px', borderRadius: '12px', border: '1px solid #F1F5F9', marginBottom: '28px' }}>
+                        {(selectedItem.message || '').split('\nDetails: ')[1] || (selectedItem.message || '').match(/^Details: ([\s\S]*)$/)?.[1] || 'No description provided.'}
+                      </div>
+                      <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                        Photos ({(selectedItem.photos || []).length})
+                      </h4>
+                      {(selectedItem.photos || []).length ? (
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          {selectedItem.photos.map((src) => (
+                            <a key={src} href={src} target="_blank" rel="noreferrer">
+                              <img src={src} alt="Customer upload" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #E2E8F0' }} />
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '14px', color: '#94A3B8' }}>No photos uploaded.</div>
+                      )}
+                    </div>
+                  ) : (
                   <div>
                     <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
                       Message Details
@@ -1445,6 +1502,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                       {selectedItem.message || 'No additional notes provided by sender.'}
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             ) : (
