@@ -33,6 +33,20 @@ const TRADES = {
   },
 };
 
+const PAINT_WORK = ['Painting', 'Wallpapering', 'Wallpaper Removal', 'Some Repair Work (minor plastering)', 'Other'];
+const PAINT_WHAT = [
+  { v: 'Rooms', d: 'Walls & Ceilings, etc' },
+  { v: 'Woodwork', d: 'Doors, Frames, Skirting, Staircases, Windows, Cupboards, etc' },
+  { v: 'Metalwork', d: 'Radiators, Metal Staircases, etc' },
+  { v: 'Other' },
+];
+const PAINT_ROOMS = ['Just a small area', '1 to 2 rooms', '3 to 4 rooms', '5 to 6 rooms', '7 or more rooms'];
+const PAINT_MAT = ['Yes, I need all of the materials supplying', 'I only need some of the materials supplying', 'No, I will supply all of the materials'];
+const EXT_WHAT = ['External Walls', 'Fencing / Gates', 'Soffits & Fascias', 'Doors / Windows', 'Sheds', 'Decking', 'Other'];
+const EXT_WALLS_QTY = ['Only a small area', '1 wall', '2 to 3 walls', '4 walls or more', 'Other'];
+const EXT_FENCE_QTY = ['Just 1', '2 to 4', '5 to 10', '11 to 20', '20+'];
+const EXT_MAT = ['Yes', 'No'];
+
 const WINDOW_TYPES = ['Door Fitting', 'Window Fitting', 'Laminate Fitting', 'Repair Work', 'Other'];
 const DOOR_WORK = ['I need brand new doorway fitting', 'I need door hanging / trimming', 'Fitted door, replacing / recutting', 'Other'];
 const DOOR_COUNT = ['1 door', '2 to 4 doors', '5 to 7 doors', '8+ doors'];
@@ -153,6 +167,22 @@ export default function FindTradespersonPage() {
     steps.push('kind');
     if (a.kind === 'Door Fitting') steps.push('doorWork', 'doorCount', 'doorMat');
   }
+  if (trade === 'painting' && a.first === 'Internal Painting & Decorating') {
+    steps.push('paintWork');
+    const pw = a.paintWork || [];
+    if (pw.includes('Painting')) {
+      steps.push('paintWhat');
+      if (a.paintWhat === 'Rooms') steps.push('paintRooms');
+    }
+    if (pw.includes('Wallpapering')) steps.push('paintWallRooms');
+    if (pw.length) steps.push('paintMat');
+  }
+  if (trade === 'painting' && a.first === 'External Painting') {
+    steps.push('extWhat');
+    if ((a.extWhat || []).includes('External Walls')) steps.push('extWallsQty');
+    if ((a.extWhat || []).includes('Fencing / Gates')) steps.push('extFenceQty');
+    if ((a.extWhat || []).length) steps.push('extMat');
+  }
   if (trade === 'carpentry' && a.first === 'Furniture Making & Assembly') {
     steps.push('furnNeed');
     if (a.furnNeed === 'I need furniture assembled') steps.push('furnItems', 'furnCount', 'furnExtra');
@@ -223,6 +253,15 @@ export default function FindTradespersonPage() {
     if (a.doorWork) answers['What door fitting work do you require?'] = a.doorWork;
     if (a.doorCount) answers['How many doors need hanging?'] = a.doorCount;
     if (a.doorMat) answers['Which materials would you like the trade to supply?'] = a.doorMat;
+    if (a.paintWork) answers['What type of decorating work is required?'] = a.paintWork;
+    if (a.paintWhat) answers['What needs painting?'] = a.paintWhat;
+    if (a.paintRooms) answers['How many rooms require painting?'] = a.paintRooms;
+    if (a.paintWallRooms) answers['How many rooms require wallpapering?'] = a.paintWallRooms;
+    if (a.paintMat) answers['Do you need the tradesperson to supply materials?'] = a.paintMat;
+    if (a.extWhat) answers['What do you need painting?'] = a.extWhat;
+    if (a.extWallsQty) answers['How many external walls require the work?'] = a.extWallsQty;
+    if (a.extFenceQty) answers['How many fence panels / gates require painting?'] = a.extFenceQty;
+    if (a.extMat) answers['Will you need the paint supplying by the tradesperson?'] = a.extMat;
     if (a.furnNeed) answers['What do you need?'] = a.furnNeed;
     if (a.furnItems) answers['What needs assembling?'] = a.furnItems;
     if (a.furnCount) answers['How many items need assembling?'] = a.furnCount;
@@ -312,6 +351,69 @@ export default function FindTradespersonPage() {
               <Block title="Which materials would you like the trade to supply?" note="Choose as many as you need">
                 <Options multi options={DOOR_MATERIAL} value={a.doorMat || []} onChange={toggleMat} />
                 <Btn disabled={!(a.doorMat || []).length} onClick={() => next('doorMat')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('paintWork') && show('paintWork') && (
+              <Block title="What type of decorating work is required?" note="Tick as many as required">
+                <Options multi options={PAINT_WORK} value={a.paintWork || []} onChange={toggleList('paintWork')} />
+                <Btn disabled={!(a.paintWork || []).length} onClick={() => next('paintWork')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('paintWhat') && show('paintWhat') && (
+              <Block title="What needs painting?">
+                <Options options={PAINT_WHAT} value={a.paintWhat} onChange={(v) => set('paintWhat', v)} />
+                <Btn disabled={!a.paintWhat} onClick={() => next('paintWhat')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('paintRooms') && show('paintRooms') && (
+              <Block title="How many rooms require painting?">
+                <Options options={PAINT_ROOMS} value={a.paintRooms} onChange={(v) => set('paintRooms', v)} />
+                <Btn disabled={!a.paintRooms} onClick={() => next('paintRooms')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('paintWallRooms') && show('paintWallRooms') && (
+              <Block title="How many rooms require wallpapering?">
+                <Options options={PAINT_ROOMS} value={a.paintWallRooms} onChange={(v) => set('paintWallRooms', v)} />
+                <Btn disabled={!a.paintWallRooms} onClick={() => next('paintWallRooms')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('paintMat') && show('paintMat') && (
+              <Block title="Do you need the tradesperson to supply materials?">
+                <Options options={PAINT_MAT} value={a.paintMat} onChange={(v) => set('paintMat', v)} />
+                <Btn disabled={!a.paintMat} onClick={() => next('paintMat')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('extWhat') && show('extWhat') && (
+              <Block title="What do you need painting?" note="Tick as many as required">
+                <Options multi options={EXT_WHAT} value={a.extWhat || []} onChange={toggleList('extWhat')} />
+                <Btn disabled={!(a.extWhat || []).length} onClick={() => next('extWhat')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('extWallsQty') && show('extWallsQty') && (
+              <Block title="How many external walls require the work?">
+                <Options options={EXT_WALLS_QTY} value={a.extWallsQty} onChange={(v) => set('extWallsQty', v)} />
+                <Btn disabled={!a.extWallsQty} onClick={() => next('extWallsQty')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('extFenceQty') && show('extFenceQty') && (
+              <Block title="How many fence panels / gates require painting?">
+                <Options options={EXT_FENCE_QTY} value={a.extFenceQty} onChange={(v) => set('extFenceQty', v)} />
+                <Btn disabled={!a.extFenceQty} onClick={() => next('extFenceQty')}>Continue</Btn>
+              </Block>
+            )}
+
+            {steps.includes('extMat') && show('extMat') && (
+              <Block title="Will you need the paint supplying by the tradesperson?">
+                <Options options={EXT_MAT} value={a.extMat} onChange={(v) => set('extMat', v)} />
+                <Btn disabled={!a.extMat} onClick={() => next('extMat')}>Continue</Btn>
               </Block>
             )}
 
