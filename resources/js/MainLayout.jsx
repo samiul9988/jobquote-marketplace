@@ -4,6 +4,7 @@ import MobileDrawer from './components/layout/MobileDrawer';
 import MobileStickyBar from './components/layout/MobileStickyBar';
 import Footer from './components/layout/Footer';
 import QuoteModal from './components/modals/QuoteModal';
+import TradeQuoteModal from './components/modals/TradeQuoteModal';
 import Lightbox from './components/common/Lightbox';
 import BackToTop from './components/common/BackToTop';
 import { usePage } from '@inertiajs/react';
@@ -43,7 +44,10 @@ export default function MainLayout({ children }) {
         </>
       )}
 
+      {/* Old "Get a Free Quote" form popup — disabled in favor of the Find a Tradesperson wizard below.
       <QuoteModal isOpen={isQuoteOpen} onClose={() => setIsQuoteOpen(false)} preselectedService={preselectedService} />
+      */}
+      <TradeQuoteModal isOpen={isQuoteOpen} onClose={() => setIsQuoteOpen(false)} />
       <Lightbox isOpen={lightboxData.isOpen} onClose={handleCloseLightbox} image={lightboxData.image} title={lightboxData.title} category={lightboxData.category} />
     </div>
   );
