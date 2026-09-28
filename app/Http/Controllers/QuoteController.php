@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Quote;
+use App\Models\Customer;
 
 class QuoteController extends Controller
 {
@@ -16,8 +17,15 @@ class QuoteController extends Controller
             'projectSize' => 'nullable|string|max:255',
             'message' => 'nullable|string'
         ]);
-        
+
+        $customer = $this->findOrCreateCustomer([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+        ], 'Quote Form');
+
         Quote::create([
+            'customer_id' => $customer->id,
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
@@ -26,7 +34,7 @@ class QuoteController extends Controller
             'project_size' => $validated['projectSize'] ?? null,
             'message' => $validated['message'] ?? null,
         ]);
-        
+
         return back()->with('success', 'Quote request submitted successfully!');
     }
 
@@ -58,7 +66,14 @@ class QuoteController extends Controller
             $lines[] = 'Details: ' . $request->input('description');
         }
 
+        $customer = $this->findOrCreateCustomer([
+            'name' => 'Website enquiry',
+            'email' => '',
+            'phone' => '',
+        ], 'Find a Tradesperson');
+
         Quote::create([
+            'customer_id' => $customer->id,
             'name' => 'Website enquiry',
             'email' => '',
             'phone' => '',
@@ -76,5 +91,55 @@ class QuoteController extends Controller
         $quote = Quote::findOrFail($id);
         $quote->update(['status' => 'Read']);
         return back();
+    }
+
+    /**
+     * Find an existing customer by email or phone, or create a new one.
+     * Updates the customer's info with better data when available, without
+     * overwriting non-empty existing fields with empty ones.
+     */
+    private function findOrCreateCustomer(array $data, string $source): Customer
+    {
+        $email = trim($data['email'] ?? '');
+        $phone = trim($data['phone'] ?? '');
+
+        $customer = null;
+        if ($email !== '') {
+            $customer = Customer::where('email', $email)->first();
+        }
+        if (!$customer && $phone !== '') {
+            $customer = Customer::where('phone', $phone)->first();
+        }
+
+        if (!$customer) {
+            $customer = Customer::create([
+                'name' => $data['name'] ?? 'Website enquiry',
+                'email' => $email !== '' ? $email : null,
+                'phone' => $phone !== '' ? $phone : null,
+                'address' => $data['address'] ?? null,
+                'status' => 'Lead',
+                'source' => $source,
+            ]);
+            return $customer;
+        }
+
+        $updates = [];
+        if (!empty($data['name']) && empty($customer->name)) {
+            $updates['name'] = $data['name'];
+        }
+        if ($email !== '' && empty($customer->email)) {
+            $updates['email'] = $email;
+        }
+        if ($phone !== '' && empty($customer->phone)) {
+            $updates['phone'] = $phone;
+        }
+        if (!empty($data['address']) && empty($customer->address)) {
+            $updates['address'] = $data['address'];
+        }
+        if (!empty($updates)) {
+            $customer->update($updates);
+        }
+
+        return $customer;
     }
 }

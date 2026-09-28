@@ -13,6 +13,10 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\HeroImageController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\PaymentSettingController;
 
 Route::post('/quotes', [QuoteController::class, 'store']);
 Route::post('/find-tradesperson', [QuoteController::class, 'storeTrade']);
@@ -42,7 +46,7 @@ Route::middleware('guest')->group(function () {
     });
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'staff'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/quotes/{id}/read', [QuoteController::class, 'markAsRead']);
     Route::post('/contact/{id}/read', [ContactMessageController::class, 'markAsRead']);
@@ -60,6 +64,10 @@ Route::middleware('auth')->group(function () {
 
     // Global Settings
     Route::post('/dashboard/settings', [SettingController::class, 'update']);
+    Route::post('/dashboard/settings/tracking', [SettingController::class, 'updateTracking']);
+
+    // Payment Account Setup
+    Route::post('/dashboard/payment-settings', [PaymentSettingController::class, 'update']);
     Route::post('/dashboard/about', [SettingController::class, 'updateAbout']);
     Route::post('/dashboard/home', [SettingController::class, 'updateHome']);
 
@@ -92,10 +100,30 @@ Route::middleware('auth')->group(function () {
     Route::delete('/dashboard/gallery/{id}', [ProjectController::class, 'destroy']);
     Route::put('/dashboard/gallery/{id}/toggle', [ProjectController::class, 'toggleStatus']);
 
+    // Customer Management
+    Route::post('/dashboard/customers', [CustomerController::class, 'store']);
+    Route::post('/dashboard/customers/{id}', [CustomerController::class, 'update']);
+    Route::delete('/dashboard/customers/{id}', [CustomerController::class, 'destroy']);
+    Route::post('/dashboard/customers/{id}/note', [CustomerController::class, 'addNote']);
+    Route::post('/dashboard/customers/{id}/status', [CustomerController::class, 'updateStatus']);
+
+    // Invoices
+    Route::post('/dashboard/invoices', [InvoiceController::class, 'store']);
+    Route::post('/dashboard/invoices/{id}', [InvoiceController::class, 'update']);
+    Route::delete('/dashboard/invoices/{id}', [InvoiceController::class, 'destroy']);
+    Route::post('/dashboard/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
+    Route::post('/dashboard/quotes/{id}/generate-invoice', [InvoiceController::class, 'generateFromQuote']);
+
+    // Account Management
+    Route::post('/dashboard/accounts', [AccountController::class, 'store']);
+    Route::post('/dashboard/accounts/{id}', [AccountController::class, 'update']);
+    Route::delete('/dashboard/accounts/{id}', [AccountController::class, 'destroy']);
+    Route::post('/dashboard/accounts/{id}/toggle', [AccountController::class, 'toggleStatus']);
+
 });
 
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'staff'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
 });
 

@@ -57,12 +57,34 @@ class SettingController extends Controller
     public function updateHome(Request $request)
     {
         $data = $request->except(['_token']);
-        
+
         foreach ($data as $key => $value) {
             Setting::updateOrCreate(['key' => $key], ['value' => $value ?? '']);
         }
 
         return back()->with('home_success', 'Home page content updated!');
+    }
+
+    public function updateTracking(Request $request)
+    {
+        $validated = $request->validate([
+            'tracking_enabled' => 'nullable|boolean',
+            'meta_pixel_id' => 'nullable|string|max:50',
+            'ga4_measurement_id' => 'nullable|string|max:50',
+            'gtm_container_id' => 'nullable|string|max:50',
+            'cookie_consent_enabled' => 'nullable|boolean',
+            'cookie_banner_text' => 'nullable|string',
+        ]);
+
+        // Normalize booleans to '1'/'0' strings for consistent storage in the settings table
+        $validated['tracking_enabled'] = $request->boolean('tracking_enabled') ? '1' : '0';
+        $validated['cookie_consent_enabled'] = $request->boolean('cookie_consent_enabled') ? '1' : '0';
+
+        foreach ($validated as $key => $value) {
+            Setting::updateOrCreate(['key' => $key], ['value' => $value ?? '']);
+        }
+
+        return back()->with('tracking_success', 'Tracking & Pixel settings updated!');
     }
 }
 

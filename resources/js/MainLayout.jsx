@@ -7,6 +7,7 @@ import QuoteModal from './components/modals/QuoteModal';
 import TradeQuoteModal from './components/modals/TradeQuoteModal';
 import Lightbox from './components/common/Lightbox';
 import BackToTop from './components/common/BackToTop';
+import CookieConsentBanner from './components/common/CookieConsentBanner';
 import { usePage } from '@inertiajs/react';
 
 export default function MainLayout({ children }) {
@@ -41,6 +42,7 @@ export default function MainLayout({ children }) {
           <Footer onOpenQuote={handleOpenQuote} />
           <MobileStickyBar onOpenQuote={handleOpenQuote} />
           <BackToTop />
+          <CookieConsentBanner />
         </>
       )}
 

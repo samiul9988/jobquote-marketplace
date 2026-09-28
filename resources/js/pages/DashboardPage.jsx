@@ -29,12 +29,23 @@ import {
   Trash2,
   Power,
   X,
-  Star
+  Star,
+  UserPlus,
+  Phone,
+  Mail,
+  MapPin,
+  StickyNote,
+  FileCheck,
+  Search,
+  ShieldCheck,
+  CreditCard,
+  EyeOff,
+  Radar
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import InvoiceGenerator from '../components/admin/InvoiceGenerator';
 
-export default function DashboardPage({ quotes = [], messages = [], jobPosts = [], reviews = [], projects = [], services = [], heroImages = [], faqs = [] }) {
+export default function DashboardPage({ quotes = [], messages = [], jobPosts = [], reviews = [], projects = [], services = [], heroImages = [], faqs = [], customers = [], invoices = [], accounts = [] }) {
   const navigate = router.visit;
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('adminDashboardTab') || 'overview';
@@ -43,7 +54,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   useEffect(() => {
     localStorage.setItem('adminDashboardTab', activeTab);
   }, [activeTab]);
-  const { settings = {} } = usePage().props;
+  const { settings = {}, auth } = usePage().props;
   const [faviconPreview, setFaviconPreview] = useState(settings.site_favicon || null);
   const settingsForm = useForm({
     phone: settings.phone || '',
@@ -66,6 +77,49 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     settingsForm.post('/dashboard/settings', { preserveScroll: true });
   };
 
+  const trackingForm = useForm({
+    tracking_enabled: settings.tracking_enabled === '1' || settings.tracking_enabled === true,
+    meta_pixel_id: settings.meta_pixel_id || '',
+    ga4_measurement_id: settings.ga4_measurement_id || '',
+    gtm_container_id: settings.gtm_container_id || '',
+    cookie_consent_enabled: settings.cookie_consent_enabled === '1' || settings.cookie_consent_enabled === true,
+    cookie_banner_text: settings.cookie_banner_text || ''
+  });
+
+  const handleTrackingSubmit = (e) => {
+    e.preventDefault();
+    trackingForm.post('/dashboard/settings/tracking', { preserveScroll: true });
+  };
+
+  const paymentSettingsForm = useForm({
+    bkash_enabled: settings.bkash_enabled === '1' || settings.bkash_enabled === true,
+    bkash_merchant_number: settings.bkash_merchant_number || '',
+    bkash_app_key: '',
+    bkash_app_secret: '',
+    bkash_username: settings.bkash_username || '',
+    bkash_password: '',
+    bkash_mode: settings.bkash_mode || 'sandbox',
+    sslcommerz_enabled: settings.sslcommerz_enabled === '1' || settings.sslcommerz_enabled === true,
+    sslcommerz_store_id: settings.sslcommerz_store_id || '',
+    sslcommerz_store_password: '',
+    sslcommerz_mode: settings.sslcommerz_mode || 'sandbox'
+  });
+
+  const [showSecrets, setShowSecrets] = useState({
+    bkash_app_secret: false,
+    bkash_password: false,
+    sslcommerz_store_password: false
+  });
+
+  const toggleShowSecret = (field) => {
+    setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const handlePaymentSettingsSubmit = (e) => {
+    e.preventDefault();
+    paymentSettingsForm.post('/dashboard/payment-settings', { preserveScroll: true });
+  };
+
   const [saveMessage, setSaveMessage] = useState('');
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [inboxSubTab, setInboxSubTab] = useState('quotes');
@@ -74,6 +128,150 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
+
+  // --- Customer Management State ---
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerStatusFilter, setCustomerStatusFilter] = useState('All');
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [noteText, setNoteText] = useState('');
+  const [invoiceView, setInvoiceView] = useState('list');
+  const [activeInvoiceId, setActiveInvoiceId] = useState(null);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
+
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
+
+  const accountForm = useForm({
+    name: '',
+    email: '',
+    password: '',
+    role: 'staff'
+  });
+
+  const openAddAccountModal = () => {
+    setEditingAccount(null);
+    accountForm.reset();
+    accountForm.clearErrors();
+    accountForm.setData({ name: '', email: '', password: '', role: 'staff' });
+    setIsAccountModalOpen(true);
+  };
+
+  const openEditAccountModal = (account) => {
+    setEditingAccount(account);
+    accountForm.clearErrors();
+    accountForm.setData({
+      name: account.name || '',
+      email: account.email || '',
+      password: '',
+      role: account.role || 'staff'
+    });
+    setIsAccountModalOpen(true);
+  };
+
+  const handleAccountSubmit = (e) => {
+    e.preventDefault();
+    if (editingAccount) {
+      accountForm.post(`/dashboard/accounts/${editingAccount.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+          setIsAccountModalOpen(false);
+          accountForm.reset();
+        }
+      });
+    } else {
+      accountForm.post('/dashboard/accounts', {
+        preserveScroll: true,
+        onSuccess: () => {
+          setIsAccountModalOpen(false);
+          accountForm.reset();
+        }
+      });
+    }
+  };
+
+  const deleteAccount = (id) => {
+    if (confirm('Delete this account? This cannot be undone.')) {
+      router.delete(`/dashboard/accounts/${id}`, { preserveScroll: true });
+    }
+  };
+
+  const toggleAccountStatus = (id) => {
+    router.post(`/dashboard/accounts/${id}/toggle`, {}, { preserveScroll: true });
+  };
+
+  const customerForm = useForm({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    status: 'Lead'
+  });
+
+  const openAddCustomerModal = () => {
+    setEditingCustomer(null);
+    customerForm.reset();
+    customerForm.setData({ name: '', email: '', phone: '', address: '', status: 'Lead' });
+    setIsCustomerModalOpen(true);
+  };
+
+  const openEditCustomerModal = (customer) => {
+    setEditingCustomer(customer);
+    customerForm.setData({
+      name: customer.name || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+      status: customer.status || 'Lead'
+    });
+    setIsCustomerModalOpen(true);
+  };
+
+  const handleCustomerSubmit = (e) => {
+    e.preventDefault();
+    if (editingCustomer) {
+      customerForm.post(`/dashboard/customers/${editingCustomer.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+          setIsCustomerModalOpen(false);
+          customerForm.reset();
+        }
+      });
+    } else {
+      customerForm.post('/dashboard/customers', {
+        preserveScroll: true,
+        onSuccess: () => {
+          setIsCustomerModalOpen(false);
+          customerForm.reset();
+        }
+      });
+    }
+  };
+
+  const deleteCustomer = (id) => {
+    if (confirm('Delete this customer? This cannot be undone.')) {
+      router.delete(`/dashboard/customers/${id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+          if (selectedCustomerId === id) setSelectedCustomerId(null);
+        }
+      });
+    }
+  };
+
+  const updateCustomerStatus = (id, status) => {
+    router.post(`/dashboard/customers/${id}/status`, { status }, { preserveScroll: true });
+  };
+
+  const submitCustomerNote = (id) => {
+    if (!noteText.trim()) return;
+    router.post(`/dashboard/customers/${id}/note`, { note: noteText }, {
+      preserveScroll: true,
+      onSuccess: () => setNoteText('')
+    });
+  };
   
   const jobForm = useForm({
     title: '',
@@ -492,9 +690,13 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     { id: 'gallery', label: 'Gallery CMS', icon: ImageIcon },
     { id: 'careers', label: 'Careers CMS', icon: Briefcase },
     { id: 'settings', label: 'Global Settings', icon: Settings },
+    { id: 'tracking', label: 'Tracking & Pixels', icon: Radar },
     { id: 'inbox', label: 'Inbox & Quotes', icon: Inbox },
+    { id: 'customers', label: 'Customers', icon: Users },
     { id: 'reviews_cms', label: 'Reviews CMS', icon: Star },
-    { id: 'invoices', label: 'Invoice Generator', icon: FileText },
+    { id: 'invoices', label: 'Invoices', icon: FileText },
+    { id: 'payments', label: 'Payment Accounts', icon: CreditCard },
+    ...(auth?.user?.role === 'admin' ? [{ id: 'accounts', label: 'Account Management', icon: ShieldCheck }] : []),
   ];
 
   // --- MOCK CHARTS ---
@@ -1201,6 +1403,231 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     </div>
   );
 
+  const renderPaymentSettings = () => {
+    const labelStyle = { display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' };
+    const inputStyle = { width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px' };
+    const hintStyle = { fontSize: '12px', color: '#94A3B8', marginTop: '6px' };
+    const errorStyle = { color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' };
+
+    const secretField = (field, label, placeholder = '') => (
+      <div>
+        <label style={labelStyle}>{label}</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            type={showSecrets[field] ? 'text' : 'password'}
+            value={paymentSettingsForm.data[field]}
+            onChange={e => paymentSettingsForm.setData(field, e.target.value)}
+            style={{ ...inputStyle, paddingRight: '44px' }}
+            placeholder={settings[`${field}_set`] ? '•••••••• (saved)' : placeholder}
+          />
+          <button
+            type="button"
+            onClick={() => toggleShowSecret(field)}
+            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: '4px' }}
+            title={showSecrets[field] ? 'Hide' : 'Show'}
+          >
+            {showSecrets[field] ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        {settings[`${field}_set`] && (
+          <p style={hintStyle}>Already saved — leave blank to keep unchanged.</p>
+        )}
+        {paymentSettingsForm.errors[field] && <div style={errorStyle}>{paymentSettingsForm.errors[field]}</div>}
+      </div>
+    );
+
+    const toggleRow = (field, label) => (
+      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', color: '#334155' }}>
+        <input
+          type="checkbox"
+          checked={paymentSettingsForm.data[field]}
+          onChange={e => paymentSettingsForm.setData(field, e.target.checked)}
+          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+        />
+        {label}
+      </label>
+    );
+
+    return (
+      <div className="admin-panel-section" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', marginBottom: '8px' }}>Payment Accounts</h2>
+        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>Configure payment account details used across the site.</p>
+
+        <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+          <CreditCard size={18} style={{ color: '#64748B', marginTop: '2px', flexShrink: 0 }} />
+          <p style={{ fontSize: '13px', color: '#64748B', lineHeight: '1.5', margin: 0 }}>
+            These credentials configure payment account details for bKash and SSLCommerz. Connect them to your checkout flow separately when ready.
+          </p>
+        </div>
+
+        <form onSubmit={handlePaymentSettingsSubmit} style={{ display: 'grid', gap: '24px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E2E8F0', borderTop: '4px solid #E2136E', display: 'grid', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>bKash</h3>
+              {toggleRow('bkash_enabled', 'Enabled')}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <label style={labelStyle}>Mode</label>
+                <select value={paymentSettingsForm.data.bkash_mode} onChange={e => paymentSettingsForm.setData('bkash_mode', e.target.value)} style={inputStyle}>
+                  <option value="sandbox">Sandbox</option>
+                  <option value="live">Live</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Merchant Number</label>
+                <input type="text" value={paymentSettingsForm.data.bkash_merchant_number} onChange={e => paymentSettingsForm.setData('bkash_merchant_number', e.target.value)} style={inputStyle} placeholder="01XXXXXXXXX" />
+                {paymentSettingsForm.errors.bkash_merchant_number && <div style={errorStyle}>{paymentSettingsForm.errors.bkash_merchant_number}</div>}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              {secretField('bkash_app_key', 'App Key')}
+              {secretField('bkash_app_secret', 'App Secret')}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <label style={labelStyle}>Username</label>
+                <input type="text" value={paymentSettingsForm.data.bkash_username} onChange={e => paymentSettingsForm.setData('bkash_username', e.target.value)} style={inputStyle} />
+                {paymentSettingsForm.errors.bkash_username && <div style={errorStyle}>{paymentSettingsForm.errors.bkash_username}</div>}
+              </div>
+              {secretField('bkash_password', 'Password')}
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E2E8F0', borderTop: '4px solid #0F172A', display: 'grid', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>SSLCommerz</h3>
+              {toggleRow('sslcommerz_enabled', 'Enabled')}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <label style={labelStyle}>Mode</label>
+                <select value={paymentSettingsForm.data.sslcommerz_mode} onChange={e => paymentSettingsForm.setData('sslcommerz_mode', e.target.value)} style={inputStyle}>
+                  <option value="sandbox">Sandbox</option>
+                  <option value="live">Live</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Store ID</label>
+                <input type="text" value={paymentSettingsForm.data.sslcommerz_store_id} onChange={e => paymentSettingsForm.setData('sslcommerz_store_id', e.target.value)} style={inputStyle} />
+                {paymentSettingsForm.errors.sslcommerz_store_id && <div style={errorStyle}>{paymentSettingsForm.errors.sslcommerz_store_id}</div>}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              {secretField('sslcommerz_store_password', 'Store Password')}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="submit" disabled={paymentSettingsForm.processing} style={{ padding: '12px 24px', backgroundColor: 'var(--color-primary)', color: '#FFF', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '15px' }}>
+              <Save size={18} /> {paymentSettingsForm.processing ? 'Saving...' : 'Save Payment Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
+  const renderTrackingSettings = () => {
+    const toggleStyle = (checked) => ({
+      width: '44px',
+      height: '24px',
+      borderRadius: '12px',
+      backgroundColor: checked ? 'var(--color-primary)' : '#CBD5E1',
+      position: 'relative',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease',
+      flexShrink: 0
+    });
+    const knobStyle = (checked) => ({
+      position: 'absolute',
+      top: '2px',
+      left: checked ? '22px' : '2px',
+      width: '20px',
+      height: '20px',
+      borderRadius: '50%',
+      backgroundColor: '#FFFFFF',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      transition: 'left 0.2s ease'
+    });
+
+    const Toggle = ({ checked, onChange, label, hint }) => (
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', padding: '16px 0', borderBottom: '1px solid #F1F5F9' }}>
+        <div>
+          <p style={{ fontSize: '14px', fontWeight: '700', color: '#334155', margin: '0 0 4px 0' }}>{label}</p>
+          {hint && <p style={{ fontSize: '12px', color: '#94A3B8', margin: 0 }}>{hint}</p>}
+        </div>
+        <div style={toggleStyle(checked)} onClick={() => onChange(!checked)}>
+          <div style={knobStyle(checked)}></div>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="admin-panel-section">
+        <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', marginBottom: '24px' }}>Tracking & Pixels</h2>
+
+        <form onSubmit={handleTrackingSubmit} style={{ backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '16px', border: '1px solid #E2E8F0', display: 'grid', gap: '24px' }}>
+          <Toggle
+            checked={trackingForm.data.tracking_enabled}
+            onChange={(val) => trackingForm.setData('tracking_enabled', val)}
+            label="Enable Tracking"
+            hint="Master switch. When off, no pixel/analytics scripts will load on the public site regardless of the fields below."
+          />
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>Meta (Facebook) Pixel ID</label>
+            <input type="text" value={trackingForm.data.meta_pixel_id} onChange={e => trackingForm.setData('meta_pixel_id', e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px' }} placeholder="e.g. 123456789012345" />
+            <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '6px' }}>Find this in Meta Events Manager &gt; Data Sources.</p>
+            {trackingForm.errors.meta_pixel_id && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{trackingForm.errors.meta_pixel_id}</p>}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>Google Analytics (GA4) Measurement ID</label>
+            <input type="text" value={trackingForm.data.ga4_measurement_id} onChange={e => trackingForm.setData('ga4_measurement_id', e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px' }} placeholder="e.g. G-XXXXXXXXXX" />
+            <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '6px' }}>Find this in Google Analytics &gt; Admin &gt; Data Streams.</p>
+            {trackingForm.errors.ga4_measurement_id && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{trackingForm.errors.ga4_measurement_id}</p>}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>Google Tag Manager Container ID</label>
+            <input type="text" value={trackingForm.data.gtm_container_id} onChange={e => trackingForm.setData('gtm_container_id', e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px' }} placeholder="e.g. GTM-XXXXXXX" />
+            <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '6px' }}>Find this in Google Tag Manager &gt; Container ID.</p>
+            {trackingForm.errors.gtm_container_id && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{trackingForm.errors.gtm_container_id}</p>}
+          </div>
+
+          <Toggle
+            checked={trackingForm.data.cookie_consent_enabled}
+            onChange={(val) => trackingForm.setData('cookie_consent_enabled', val)}
+            label="Show Cookie Consent Banner"
+            hint="If enabled, visitors are asked to accept cookies before tracking scripts fire. If disabled, tracking scripts fire immediately for all visitors."
+          />
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>Custom Cookie Banner Text (optional)</label>
+            <textarea value={trackingForm.data.cookie_banner_text} onChange={e => trackingForm.setData('cookie_banner_text', e.target.value)} rows="3" style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px', resize: 'vertical' }} placeholder="We use cookies to improve your experience and for analytics. By continuing, you agree to our use of cookies."></textarea>
+            <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '6px' }}>Leave blank to use the default message.</p>
+          </div>
+
+          {trackingForm.recentlySuccessful && (
+            <p style={{ color: '#10B981', fontSize: '14px', margin: 0, fontWeight: '600' }}>✓ Tracking & Pixel settings updated successfully.</p>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <button type="submit" disabled={trackingForm.processing} style={{ padding: '12px 24px', backgroundColor: 'var(--color-primary)', color: '#FFF', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '15px' }}>
+              <Save size={18} /> {trackingForm.processing ? 'Saving...' : 'Save Tracking Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
   const renderInbox = () => {
     const generalMessages = messages.filter(m => !m.message?.startsWith('[CAREER APPLICATION]'));
     const careerMessages = messages.filter(m => m.message?.startsWith('[CAREER APPLICATION]'));
@@ -1380,7 +1807,23 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     </div>
                   </div>
 
-                  <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {inboxSubTab === 'quotes' && selectedItem.status !== 'Accepted' && (
+                      <button
+                        onClick={() => {
+                          router.post(`/dashboard/quotes/${selectedItem.id}/generate-invoice`, {}, {
+                            preserveScroll: true,
+                            onSuccess: () => {
+                              setActiveTab('invoices');
+                              setInvoiceView('list');
+                            }
+                          });
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                      >
+                        <FileCheck size={15} /> Accept & Generate Invoice
+                      </button>
+                    )}
                     <span style={{
                       fontSize: '12px',
                       padding: '6px 12px',
@@ -1517,6 +1960,375 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     );
   };  
   
+  const customerStatusColors = {
+    Lead: { bg: '#FFFBEB', color: '#D97706' },
+    Active: { bg: '#F0FDF4', color: '#22C55E' },
+    Inactive: { bg: '#F1F5F9', color: '#64748B' }
+  };
+
+  const renderCustomersCMS = () => {
+    const getInitials = (name) => {
+      if (!name) return 'U';
+      return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    };
+
+    const filteredCustomers = customers.filter(c => {
+      const matchesSearch = !customerSearch || [c.name, c.email, c.phone].filter(Boolean).some(v => v.toLowerCase().includes(customerSearch.toLowerCase()));
+      const matchesStatus = customerStatusFilter === 'All' || c.status === customerStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
+    const totalCustomers = customers.length;
+    const activeCount = customers.filter(c => c.status === 'Active').length;
+    const leadCount = customers.filter(c => c.status === 'Lead').length;
+    const now = new Date();
+    const newThisMonth = customers.filter(c => {
+      const d = new Date(c.created_at);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+
+    const statCard = (label, value, color) => (
+      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
+        <div style={{ fontSize: '26px', fontWeight: '800', color: color || '#0F172A' }}>{value}</div>
+      </div>
+    );
+
+    return (
+      <div className="admin-panel-section" style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Customer Management</h2>
+            <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Track leads, contacts and their quote history in one place.</p>
+          </div>
+          <button onClick={openAddCustomerModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
+            <UserPlus size={18} /> Add Customer
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexShrink: 0 }}>
+          {statCard('Total Customers', totalCustomers)}
+          {statCard('Active', activeCount, '#22C55E')}
+          {statCard('Leads', leadCount, '#D97706')}
+          {statCard('New This Month', newThisMonth, 'var(--color-secondary)')}
+        </div>
+
+        {/* Split Pane Container */}
+        <div style={{ display: 'flex', flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', minHeight: 0 }}>
+
+          {/* Left Panel: List view */}
+          <div style={{ width: '380px', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+            <div style={{ padding: '16px', borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <input
+                type="text"
+                placeholder="Search by name, email or phone..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
+              />
+              <select
+                value={customerStatusFilter}
+                onChange={(e) => setCustomerStatusFilter(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF', color: '#334155' }}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Lead">Lead</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredCustomers.length === 0 ? (
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                  No customers found.
+                </div>
+              ) : (
+                filteredCustomers.map(customer => {
+                  const isActive = customer.id === selectedCustomerId;
+                  const statusStyle = customerStatusColors[customer.status] || customerStatusColors.Lead;
+                  const quoteCount = (customer.quotes || []).length;
+                  return (
+                    <div
+                      key={customer.id}
+                      onClick={() => setSelectedCustomerId(customer.id)}
+                      style={{
+                        padding: '18px 16px',
+                        borderBottom: '1px solid #E2E8F0',
+                        cursor: 'pointer',
+                        backgroundColor: isActive ? '#FFFFFF' : 'transparent',
+                        borderLeft: isActive ? '4px solid var(--color-secondary)' : '4px solid transparent',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseOver={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = '#F1F5F9'; }}
+                      onMouseOut={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: '800', fontSize: '14px', color: '#0F172A' }}>{customer.name}</span>
+                        <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: statusStyle.bg, color: statusStyle.color }}>
+                          {customer.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748B', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', marginBottom: '8px' }}>
+                        {customer.email || customer.phone || 'No contact info'}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', color: '#94A3B8' }}>{quoteCount} quote{quoteCount === 1 ? '' : 's'}</span>
+                        <span style={{ fontSize: '11px', color: '#94A3B8' }}>{new Date(customer.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Panel: Detail view */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#FFFFFF' }}>
+            {selectedCustomer ? (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                {/* Detail Header */}
+                <div style={{ padding: '24px 32px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '50%',
+                      backgroundColor: 'var(--color-secondary-light)', color: 'var(--color-secondary)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '18px'
+                    }}>
+                      {getInitials(selectedCustomer.name)}
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: '0 0 4px 0' }}>{selectedCustomer.name}</h3>
+                      <div style={{ fontSize: '13px', color: '#64748B' }}>
+                        Customer since {new Date(selectedCustomer.created_at).toLocaleDateString()} · Source: {selectedCustomer.source || 'Manual'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <select
+                      value={selectedCustomer.status}
+                      onChange={(e) => updateCustomerStatus(selectedCustomer.id, e.target.value)}
+                      style={{
+                        fontSize: '12px', padding: '8px 12px', borderRadius: '10px', fontWeight: '700',
+                        backgroundColor: (customerStatusColors[selectedCustomer.status] || customerStatusColors.Lead).bg,
+                        color: (customerStatusColors[selectedCustomer.status] || customerStatusColors.Lead).color,
+                        border: 'none', cursor: 'pointer', outline: 'none'
+                      }}
+                    >
+                      <option value="Lead">Lead</option>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                    <button onClick={() => openEditCustomerModal(selectedCustomer)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
+                    <button onClick={() => deleteCustomer(selectedCustomer.id)} style={{ padding: '8px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Delete"><Trash2 size={16} /></button>
+                  </div>
+                </div>
+
+                {/* Detail Body */}
+                <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+                  {/* Contact Info Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><Mail size={12} /> Email</span>
+                      {selectedCustomer.email ? (
+                        <a href={"mailto:" + selectedCustomer.email} style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}>{selectedCustomer.email}</a>
+                      ) : <span style={{ fontSize: '14px', color: '#94A3B8' }}>N/A</span>}
+                    </div>
+                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><Phone size={12} /> Phone</span>
+                      {selectedCustomer.phone ? (
+                        <a href={"tel:" + selectedCustomer.phone} style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', textDecoration: 'none' }}>{selectedCustomer.phone}</a>
+                      ) : <span style={{ fontSize: '14px', color: '#94A3B8' }}>N/A</span>}
+                    </div>
+                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><MapPin size={12} /> Address</span>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{selectedCustomer.address || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  {/* Quote / Order History */}
+                  <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                    Quote / Order History ({(selectedCustomer.quotes || []).length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                    {(selectedCustomer.quotes || []).length === 0 ? (
+                      <div style={{ fontSize: '14px', color: '#94A3B8' }}>No quotes submitted yet.</div>
+                    ) : (
+                      selectedCustomer.quotes.map(q => (
+                        <div key={q.id} style={{ padding: '14px 16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{q.service || 'General Enquiry'}</span>
+                            <span style={{
+                              fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700',
+                              backgroundColor: q.status === 'Pending' ? '#FEF2F2' : '#F0FDF4',
+                              color: q.status === 'Pending' ? '#EF4444' : '#22C55E'
+                            }}>
+                              {q.status}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '6px' }}>{new Date(q.created_at).toLocaleString()}</div>
+                          {q.message && (
+                            <div style={{ fontSize: '13px', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                              {q.message}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Notes */}
+                  <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <StickyNote size={14} /> Notes
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                    {(selectedCustomer.notes || []).length === 0 ? (
+                      <div style={{ fontSize: '14px', color: '#94A3B8' }}>No notes yet.</div>
+                    ) : (
+                      [...selectedCustomer.notes].reverse().map((note, idx) => (
+                        <div key={idx} style={{ padding: '12px 14px', backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
+                          <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', marginBottom: '4px' }}>{new Date(note.created_at).toLocaleString()}</div>
+                          <div style={{ fontSize: '14px', color: '#334155', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{note.text}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <textarea
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      placeholder="Add a note about this customer..."
+                      rows={3}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                    />
+                    <button
+                      onClick={() => submitCustomerNote(selectedCustomer.id)}
+                      style={{ alignSelf: 'flex-end', padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Add Note
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                Select a customer to view details.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAccountsCMS = () => {
+    if (auth?.user?.role !== 'admin') {
+      return (
+        <div style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px', backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          Access restricted to administrators.
+        </div>
+      );
+    }
+
+    const roleBadgeStyle = (role) => role === 'admin'
+      ? { bg: '#EDE9FE', color: '#7C3AED' }
+      : { bg: '#DBEAFE', color: '#2563EB' };
+
+    const activeAdminCount = accounts.filter(a => a.role === 'admin').length;
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>Account Management</h2>
+            <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Manage admin and staff accounts with access to this dashboard.</p>
+          </div>
+          <button onClick={openAddAccountModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
+            <UserPlus size={18} /> Add Account
+          </button>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+                  <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '700', color: '#64748B' }}>Name</th>
+                  <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '700', color: '#64748B' }}>Email</th>
+                  <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '700', color: '#64748B' }}>Role</th>
+                  <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '700', color: '#64748B' }}>Status</th>
+                  <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '700', color: '#64748B', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map(account => {
+                  const isSelf = auth?.user?.id === account.id;
+                  const isLastAdmin = account.role === 'admin' && activeAdminCount <= 1;
+                  const roleStyle = roleBadgeStyle(account.role);
+                  return (
+                    <tr key={account.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{account.name}</span>
+                          {isSelf && (
+                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: '#F1F5F9', color: '#64748B' }}>You</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '16px 24px', fontSize: '13px', color: '#475569' }}>{account.email}</td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', fontWeight: '700', backgroundColor: roleStyle.bg, color: roleStyle.color, textTransform: 'capitalize' }}>
+                          {account.role}
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', fontWeight: '700', backgroundColor: account.is_active ? '#F0FDF4' : '#F1F5F9', color: account.is_active ? '#22C55E' : '#64748B' }}>
+                          {account.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button onClick={() => openEditAccountModal(account)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
+                          <button
+                            onClick={() => !isSelf && toggleAccountStatus(account.id)}
+                            disabled={isSelf}
+                            style={{ padding: '6px', backgroundColor: '#F1F5F9', color: isSelf ? '#CBD5E1' : '#D97706', border: 'none', borderRadius: '6px', cursor: isSelf ? 'not-allowed' : 'pointer' }}
+                            title={isSelf ? 'You cannot deactivate your own account' : (account.is_active ? 'Deactivate' : 'Activate')}
+                          >
+                            <Power size={16} />
+                          </button>
+                          <button
+                            onClick={() => (!isSelf && !isLastAdmin) && deleteAccount(account.id)}
+                            disabled={isSelf || isLastAdmin}
+                            style={{ padding: '6px', backgroundColor: '#FEF2F2', color: (isSelf || isLastAdmin) ? '#FCA5A5' : '#EF4444', border: 'none', borderRadius: '6px', cursor: (isSelf || isLastAdmin) ? 'not-allowed' : 'pointer' }}
+                            title={isSelf ? 'You cannot delete your own account' : (isLastAdmin ? 'You cannot delete the last remaining admin' : 'Delete')}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {accounts.length === 0 && (
+                  <tr>
+                    <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                      No admin/staff accounts found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderServicesCMS = () => (
     <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -1958,6 +2770,181 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     );
   };
 
+  const invoiceStatusColors = {
+    Unpaid: { bg: '#FFFBEB', color: '#D97706' },
+    Paid: { bg: '#F0FDF4', color: '#22C55E' },
+    'Partially Paid': { bg: '#EFF6FF', color: '#2563EB' },
+    Overdue: { bg: '#FEF2F2', color: '#EF4444' }
+  };
+
+  const isInvoiceOverdue = (invoice) => {
+    if (!invoice.due_date || invoice.status === 'Paid') return false;
+    return new Date(invoice.due_date) < new Date(new Date().toDateString());
+  };
+
+  const getInvoiceDisplayStatus = (invoice) => isInvoiceOverdue(invoice) ? 'Overdue' : (invoice.status || 'Unpaid');
+
+  const renderInvoicesCMS = () => {
+    if (invoiceView === 'edit') {
+      const activeInvoice = invoices.find(i => i.id === activeInvoiceId) || null;
+      return (
+        <InvoiceGenerator
+          invoice={activeInvoice}
+          customers={customers}
+          settings={settings}
+          onBack={() => { setInvoiceView('list'); setActiveInvoiceId(null); }}
+        />
+      );
+    }
+
+    const filteredInvoices = invoices.filter(inv => {
+      const matchesSearch = !invoiceSearch || [inv.invoice_number, inv.customer?.name].filter(Boolean).some(v => v.toLowerCase().includes(invoiceSearch.toLowerCase()));
+      const displayStatus = getInvoiceDisplayStatus(inv);
+      const matchesStatus = invoiceStatusFilter === 'All' || displayStatus === invoiceStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    const totalInvoices = invoices.length;
+    const unpaidInvoices = invoices.filter(i => getInvoiceDisplayStatus(i) === 'Unpaid');
+    const paidInvoices = invoices.filter(i => getInvoiceDisplayStatus(i) === 'Paid');
+    const overdueInvoices = invoices.filter(i => getInvoiceDisplayStatus(i) === 'Overdue');
+    const unpaidSum = unpaidInvoices.reduce((s, i) => s + parseFloat(i.due || 0), 0);
+    const paidSum = paidInvoices.reduce((s, i) => s + parseFloat(i.total || 0), 0);
+
+    const statCard = (label, value, sub, color) => (
+      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
+        <div style={{ fontSize: '26px', fontWeight: '800', color: color || '#0F172A' }}>{value}</div>
+        {sub && <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: '600', marginTop: '4px' }}>{sub}</div>}
+      </div>
+    );
+
+    const handleDelete = (id) => {
+      if (confirm('Are you sure you want to delete this invoice? This cannot be undone.')) {
+        router.delete(`/dashboard/invoices/${id}`, { preserveScroll: true });
+      }
+    };
+
+    const handleMarkPaid = (id) => {
+      router.post(`/dashboard/invoices/${id}/status`, { status: 'Paid' }, { preserveScroll: true });
+    };
+
+    return (
+      <div className="admin-panel-section" style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Invoices</h2>
+            <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Create, track and manage customer invoices.</p>
+          </div>
+          <button
+            onClick={() => { setActiveInvoiceId(null); setInvoiceView('edit'); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}
+          >
+            <Plus size={18} /> New Invoice
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexShrink: 0 }}>
+          {statCard('Total Invoices', totalInvoices)}
+          {statCard('Unpaid', unpaidInvoices.length, `£${unpaidSum.toFixed(2)} due`, '#D97706')}
+          {statCard('Paid', paidInvoices.length, `£${paidSum.toFixed(2)} collected`, '#22C55E')}
+          {statCard('Overdue', overdueInvoices.length, null, '#EF4444')}
+        </div>
+
+        <div style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '10px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Search by invoice number or customer name..."
+                value={invoiceSearch}
+                onChange={(e) => setInvoiceSearch(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px 10px 36px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
+              />
+            </div>
+            <select
+              value={invoiceStatusFilter}
+              onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF', color: '#334155' }}
+            >
+              <option value="All">All Statuses</option>
+              <option value="Unpaid">Unpaid</option>
+              <option value="Paid">Paid</option>
+              <option value="Partially Paid">Partially Paid</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {filteredInvoices.length === 0 ? (
+              <div style={{ padding: '60px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                No invoices found.
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    {['Invoice #', 'Customer', 'Date', 'Due Date', 'Total', 'Status', ''].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map(inv => {
+                    const displayStatus = getInvoiceDisplayStatus(inv);
+                    const statusStyle = invoiceStatusColors[displayStatus] || invoiceStatusColors.Unpaid;
+                    return (
+                      <tr
+                        key={inv.id}
+                        onClick={() => { setActiveInvoiceId(inv.id); setInvoiceView('edit'); }}
+                        style={{ borderBottom: '1px solid #F1F5F9', cursor: 'pointer' }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>{inv.invoice_number}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#334155' }}>{inv.customer?.name || 'N/A'}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#64748B' }}>{inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-GB') : '-'}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#64748B' }}>{inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-GB') : '-'}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>£{parseFloat(inv.total || 0).toFixed(2)}</td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '10px', fontWeight: '700', backgroundColor: statusStyle.bg, color: statusStyle.color }}>
+                            {displayStatus}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            {displayStatus !== 'Paid' && (
+                              <button
+                                onClick={() => handleMarkPaid(inv.id)}
+                                title="Mark as Paid"
+                                style={{ padding: '6px 10px', fontSize: '11px', fontWeight: '700', color: '#22C55E', backgroundColor: '#F0FDF4', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDelete(inv.id)}
+                              title="Delete"
+                              style={{ padding: '6px', color: '#EF4444', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'overview': return renderOverview();
@@ -1968,10 +2955,14 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       
       case 'careers': return renderCareersControl();
       case 'settings': return renderGlobalSettings();
+      case 'tracking': return renderTrackingSettings();
       case 'gallery': return renderGalleryCMS();
       case 'inbox': return renderInbox();
+      case 'customers': return renderCustomersCMS();
       case 'reviews_cms': return renderReviewsControl();
-      case 'invoices': return <InvoiceGenerator settings={settings} />;
+      case 'invoices': return renderInvoicesCMS();
+      case 'accounts': return renderAccountsCMS();
+      case 'payments': return renderPaymentSettings();
       default: return renderOverview();
     }
   };
@@ -2210,6 +3201,241 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
         </div>
       
+      {/* Customer Add/Edit Modal Overlay */}
+      {isCustomerModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '520px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '90vh'
+          }}>
+            {/* Modal Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>
+                {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
+              </h3>
+              <button
+                onClick={() => setIsCustomerModalOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleCustomerSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={customerForm.data.name}
+                    onChange={(e) => customerForm.setData('name', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Email</label>
+                    <input
+                      type="email"
+                      value={customerForm.data.email}
+                      onChange={(e) => customerForm.setData('email', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Phone</label>
+                    <input
+                      type="text"
+                      value={customerForm.data.phone}
+                      onChange={(e) => customerForm.setData('phone', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Address</label>
+                  <input
+                    type="text"
+                    value={customerForm.data.address}
+                    onChange={(e) => customerForm.setData('address', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                  <select
+                    value={customerForm.data.status}
+                    onChange={(e) => customerForm.setData('status', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}
+                  >
+                    <option value="Lead">Lead</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomerModalOpen(false)}
+                  style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={customerForm.processing}
+                  style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}
+                >
+                  {customerForm.processing ? 'Saving...' : 'Save Customer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Account Management Modal Overlay */}
+      {isAccountModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '520px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '90vh'
+          }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>
+                {editingAccount ? 'Edit Account' : 'Add New Account'}
+              </h3>
+              <button
+                onClick={() => setIsAccountModalOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAccountSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={accountForm.data.name}
+                    onChange={(e) => accountForm.setData('name', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                  {accountForm.errors.name && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.name}</div>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={accountForm.data.email}
+                    onChange={(e) => accountForm.setData('email', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                  {accountForm.errors.email && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.email}</div>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Role *</label>
+                  <select
+                    value={accountForm.data.role}
+                    onChange={(e) => accountForm.setData('role', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}
+                  >
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  {accountForm.errors.role && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.role}</div>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                    {editingAccount ? 'New Password (leave blank to keep current)' : 'Password *'}
+                  </label>
+                  <input
+                    type="password"
+                    required={!editingAccount}
+                    value={accountForm.data.password}
+                    onChange={(e) => accountForm.setData('password', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                  {accountForm.errors.password && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.password}</div>}
+                </div>
+              </div>
+
+              <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={accountForm.processing}
+                  style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}
+                >
+                  {accountForm.processing ? 'Saving...' : 'Save Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Careers Job Post Modal Overlay */}
       {isJobModalOpen && (
         <div style={{

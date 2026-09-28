@@ -10,6 +10,9 @@ use App\Models\Quote;
 use App\Models\ContactMessage;
 use App\Models\JobPost;
 use App\Models\Review;
+use App\Models\Customer;
+use App\Models\Invoice;
+use App\Models\User;
 
 class DashboardController extends Controller
 {
@@ -23,6 +26,9 @@ class DashboardController extends Controller
         $heroImages = HeroImage::orderBy('order')->get(); // All images for CMS management
         $faqs = Faq::where('status', 'Active')->orderBy('order')->get();
         $services = Service::all();
+        $customers = Customer::with('quotes')->orderBy('created_at', 'desc')->get();
+        $invoices = Invoice::with(['customer', 'quote'])->orderBy('created_at', 'desc')->get();
+        $accounts = User::whereIn('role', ['admin', 'staff'])->orderBy('created_at')->get();
 
         return Inertia::render('DashboardPage', [
             'quotes' => $quotes,
@@ -32,7 +38,10 @@ class DashboardController extends Controller
             'projects' => $projects,
             'heroImages' => $heroImages,
             'faqs' => $faqs,
-            'services' => $services
+            'services' => $services,
+            'customers' => $customers,
+            'invoices' => $invoices,
+            'accounts' => $accounts
         ]);
     }
 }

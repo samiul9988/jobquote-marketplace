@@ -1,29 +1,84 @@
 import React, { useState } from 'react';
-import { Globe, Phone, Mail, MapPin, Landmark, CreditCard, FileText, Handshake } from 'lucide-react';
+import { router } from '@inertiajs/react';
+import { Globe, Phone, Mail, MapPin, Landmark, CreditCard, FileText, Handshake, ArrowLeft, Save } from 'lucide-react';
 
-export default function InvoiceGenerator({ settings }) {
-  const [invoiceData, setInvoiceData] = useState({
-    toName: 'Zoe Crosskeys',
-    toEmail: 'zoe@example.com',
-    toMobile: '+44 7545974754',
-    toAddress: '2 Dingle View, Corwen Road',
-    invoiceNumber: 'SK0006',
-    invoiceDate: '17 Aug 2026',
-    paymentDue: '24 Aug 2026',
-    items: [
-      { id: 1, description: 'Wood work', amount: 160.00 }
-    ],
-    status: 'Unpaid',
-    advance: 0,
-    accountName: 'SK Home Solutions',
-    accountNumber: '12345678',
-    sortCode: '12-34-56',
-    paymentMethod: 'BACS or FPS Payment Only',
-    paymentTerm: '7 Days from Invoice Date'
-  });
+const toInputDate = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return typeof value === 'string' ? value.slice(0, 10) : '';
+  return d.toISOString().slice(0, 10);
+};
+
+const formatDisplayDate = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+export default function InvoiceGenerator({ invoice = null, customers = [], settings, onBack }) {
+  const buildInitialState = () => {
+    if (invoice) {
+      return {
+        customerId: invoice.customer_id || invoice.customer?.id || '',
+        toName: invoice.customer?.name || '',
+        toEmail: invoice.customer?.email || '',
+        toMobile: invoice.customer?.phone || '',
+        toAddress: invoice.customer?.address || '',
+        invoiceNumber: invoice.invoice_number || '',
+        invoiceDate: toInputDate(invoice.invoice_date),
+        paymentDue: toInputDate(invoice.due_date),
+        items: (invoice.items || []).map((item, idx) => ({ id: item.id || idx + 1, description: item.description || '', amount: item.amount ?? 0 })),
+        status: invoice.status || 'Unpaid',
+        advance: invoice.advance || 0,
+        accountName: invoice.account_name || 'SK Home Solutions',
+        accountNumber: invoice.account_number || '',
+        sortCode: invoice.sort_code || '',
+        paymentMethod: invoice.payment_method || 'BACS or FPS Payment Only',
+        paymentTerm: invoice.payment_term || '7 Days from Invoice Date'
+      };
+    }
+    const today = new Date();
+    const due = new Date();
+    due.setDate(due.getDate() + 7);
+    return {
+      customerId: '',
+      toName: '',
+      toEmail: '',
+      toMobile: '',
+      toAddress: '',
+      invoiceNumber: '(auto-generated)',
+      invoiceDate: today.toISOString().slice(0, 10),
+      paymentDue: due.toISOString().slice(0, 10),
+      items: [{ id: 1, description: '', amount: 0 }],
+      status: 'Unpaid',
+      advance: 0,
+      accountName: 'SK Home Solutions',
+      accountNumber: '',
+      sortCode: '',
+      paymentMethod: 'BACS or FPS Payment Only',
+      paymentTerm: '7 Days from Invoice Date'
+    };
+  };
+
+  const [invoiceData, setInvoiceData] = useState(buildInitialState);
+  const [saving, setSaving] = useState(false);
+  const [savedMessage, setSavedMessage] = useState('');
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleCustomerSelect = (id) => {
+    const customer = customers.find(c => String(c.id) === String(id));
+    setInvoiceData({
+      ...invoiceData,
+      customerId: id,
+      toName: customer?.name || invoiceData.toName,
+      toEmail: customer?.email || invoiceData.toEmail,
+      toMobile: customer?.phone || invoiceData.toMobile,
+      toAddress: customer?.address || invoiceData.toAddress
+    });
   };
 
   const handleItemChange = (index, field, value) => {
@@ -56,6 +111,47 @@ export default function InvoiceGenerator({ settings }) {
   const advance = parseFloat(invoiceData.advance || 0);
   const due = total - advance;
 
+  const handleSave = () => {
+    if (!invoiceData.customerId) {
+      alert('Please link this invoice to a customer before saving.');
+      return;
+    }
+    if (invoiceData.items.filter(i => i.description).length === 0) {
+      alert('Please add at least one line item with a description.');
+      return;
+    }
+
+    const payload = {
+      customer_id: invoiceData.customerId,
+      quote_id: invoice?.quote_id || null,
+      items: invoiceData.items.map(i => ({ description: i.description, amount: parseFloat(i.amount || 0) })),
+      advance: parseFloat(invoiceData.advance || 0),
+      invoice_date: invoiceData.invoiceDate,
+      due_date: invoiceData.paymentDue,
+      status: invoiceData.status || 'Unpaid',
+      account_name: invoiceData.accountName,
+      account_number: invoiceData.accountNumber,
+      sort_code: invoiceData.sortCode,
+      payment_method: invoiceData.paymentMethod,
+      payment_term: invoiceData.paymentTerm
+    };
+
+    setSaving(true);
+    const url = invoice?.id ? `/dashboard/invoices/${invoice.id}` : '/dashboard/invoices';
+    router.post(url, payload, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setSaving(false);
+        setSavedMessage('Saved!');
+        setTimeout(() => setSavedMessage(''), 2500);
+      },
+      onError: () => {
+        setSaving(false);
+        alert('Could not save invoice. Please check the fields and try again.');
+      }
+    });
+  };
+
   // Pad items to minimum of 5 rows
   const paddedItems = [...invoiceData.items];
   while (paddedItems.length < 5) {
@@ -64,18 +160,45 @@ export default function InvoiceGenerator({ settings }) {
 
   return (
     <div className="invoice-generator-container" style={{ display: 'flex', gap: '30px', padding: '20px', height: 'calc(100vh - 40px)' }}>
-      
+
       {/* LEFT SIDE: CONTROLS (Hidden on Print) */}
       <div className="invoice-controls no-print" style={{ flex: 1, backgroundColor: '#FFF', borderRadius: '16px', padding: '24px', overflowY: 'auto', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A' }}>Invoice Generator</h2>
-          <button onClick={handlePrint} style={{ backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
-            Print / Save as PDF
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {onBack && (
+              <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: '#64748B', fontWeight: '700', fontSize: '13px' }}>
+                <ArrowLeft size={15} /> Back
+              </button>
+            )}
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', margin: 0 }}>{invoice ? 'Edit Invoice' : 'New Invoice'}</h2>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {savedMessage && <span style={{ color: '#22C55E', fontWeight: '700', fontSize: '13px' }}>{savedMessage}</span>}
+            <button onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '700', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+              <Save size={16} /> {saving ? 'Saving...' : 'Save Invoice'}
+            </button>
+            <button onClick={handlePrint} style={{ backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+              Print / Save as PDF
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
+
+          <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>Link to Existing Customer</h3>
+            <select
+              value={invoiceData.customerId}
+              onChange={e => handleCustomerSelect(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#FFF' }}
+            >
+              <option value="">-- Select a customer --</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ''}</option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
             <h3 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>Client Details (To)</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -90,22 +213,22 @@ export default function InvoiceGenerator({ settings }) {
             <h3 style={{ fontSize: '14px', fontWeight: '700', gridColumn: 'span 2', marginBottom: '4px' }}>Invoice Details</h3>
             <div>
               <label style={{ fontSize: '12px', color: '#64748B' }}>Invoice Number</label>
-              <input type="text" value={invoiceData.invoiceNumber} onChange={e => setInvoiceData({...invoiceData, invoiceNumber: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+              <input type="text" value={invoiceData.invoiceNumber} disabled style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#F1F5F9', color: '#64748B' }} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#64748B' }}>Invoice Date</label>
-              <input type="text" value={invoiceData.invoiceDate} onChange={e => setInvoiceData({...invoiceData, invoiceDate: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+              <input type="date" value={invoiceData.invoiceDate} onChange={e => setInvoiceData({...invoiceData, invoiceDate: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#64748B' }}>Payment Due Date</label>
-              <input type="text" value={invoiceData.paymentDue} onChange={e => setInvoiceData({...invoiceData, paymentDue: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+              <input type="date" value={invoiceData.paymentDue} onChange={e => setInvoiceData({...invoiceData, paymentDue: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#64748B' }}>Status</label>
               <select value={invoiceData.status} onChange={e => setInvoiceData({...invoiceData, status: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#FFF' }}>
-                <option value="Paid">Paid</option>
                 <option value="Unpaid">Unpaid</option>
-                <option value="">(Hide Status)</option>
+                <option value="Paid">Paid</option>
+                <option value="Partially Paid">Partially Paid</option>
               </select>
             </div>
           </div>
@@ -145,18 +268,18 @@ export default function InvoiceGenerator({ settings }) {
 
       {/* RIGHT SIDE: PRINT PREVIEW */}
       <div className="invoice-preview-wrapper" style={{ flex: 1.5, overflowY: 'auto', backgroundColor: '#F1F5F9', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '20px' }}>
-        <div className="invoice-a4-page" style={{ 
+        <div className="invoice-a4-page" style={{
             boxSizing: 'border-box',
-            width: '210mm', 
-            minHeight: '297mm', 
-            backgroundColor: '#FFF', 
+            width: '210mm',
+            minHeight: '297mm',
+            backgroundColor: '#FFF',
             padding: '15mm',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
             position: 'relative',
             color: '#1F295B',
             fontFamily: "'Inter', sans-serif"
           }}>
-          
+
           {/* TOP HEADER */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1F295B', paddingBottom: '15px', marginBottom: '15px' }}>
             {/* Logo */}
@@ -174,7 +297,7 @@ export default function InvoiceGenerator({ settings }) {
                 <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#1F295B', margin: '0 0 4px 0', whiteSpace: 'nowrap' }}>SK Home Solutions</h1>
                 <p style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '1px', margin: '0' }}>PAINTING & JOINERY</p>
               </div>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', fontSize: '11px', fontWeight: '600' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Globe size={13} color="#1F295B"/> www.skhome-solutions.co.uk</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={13} color="#1F295B"/> +44 1792 923232</div>
@@ -190,9 +313,9 @@ export default function InvoiceGenerator({ settings }) {
                 <div>Invoice No.</div>
                 <div>{invoiceData.invoiceNumber}</div>
                 <div>Date</div>
-                <div>{invoiceData.invoiceDate}</div>
+                <div>{formatDisplayDate(invoiceData.invoiceDate)}</div>
                 <div>Due Date</div>
-                <div>{invoiceData.paymentDue}</div>
+                <div>{formatDisplayDate(invoiceData.paymentDue)}</div>
               </div>
             </div>
           </div>

@@ -1,16 +1,18 @@
 <?php
+
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Quote extends Model
+class Customer extends Model
 {
     use HasFactory;
     protected $guarded = [];
-    protected $casts = ['details' => 'array', 'photos' => 'array'];
+    protected $casts = ['notes' => 'array'];
 
-    public function customer()
+    public function quotes()
     {
-        return $this->belongsTo(Customer::class);
+        return $this->hasMany(Quote::class);
     }
 }
