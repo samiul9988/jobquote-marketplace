@@ -18,6 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'staff' => \App\Http\Middleware\EnsureIsStaff::class,
         ]);
+        // /track-event is a stateless public analytics beacon (sendBeacon/fetch,
+        // not an Inertia form post) so it never carries the X-XSRF-TOKEN header.
+        // It's rate-limited and write-only, so excluding it from CSRF is safe.
+        $middleware->validateCsrfTokens(except: [
+            'track-event',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

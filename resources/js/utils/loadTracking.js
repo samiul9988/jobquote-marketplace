@@ -3,10 +3,59 @@
 // This should only ever be called after the visitor has given consent
 // (or when consent isn't required per the admin's settings).
 
+// Logs a lightweight, first-party site-activity event to our own DB via a
+// public beacon endpoint. Used to power the admin "Live Site Activity" panel.
+// Fire-and-forget — never awaited, never blocks the caller.
+export function logTrackingEvent(eventType, extra = {}) {
+  try {
+    let sid = null;
+    try {
+      sid = localStorage.getItem('tracking_session_id');
+      if (!sid) {
+        sid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : String(Date.now()) + Math.random();
+        localStorage.setItem('tracking_session_id', sid);
+      }
+    } catch (e) {
+      sid = String(Date.now()) + Math.random();
+    }
+
+    const payload = {
+      event_type: eventType,
+      page_url: window.location.pathname,
+      page_title: document.title,
+      referrer: document.referrer || null,
+      session_id: sid,
+      ...extra
+    };
+
+    const body = JSON.stringify(payload);
+
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      navigator.sendBeacon('/track-event', blob);
+    } else {
+      fetch('/track-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true
+      }).catch(() => {});
+    }
+  } catch (e) {
+    // Never let analytics logging break the page.
+  }
+}
+
 export function loadTrackingScripts(settings = {}) {
   if (!settings || !(settings.tracking_enabled === '1' || settings.tracking_enabled === true)) {
     return;
   }
+
+  // Log the initial pageview once, regardless of which (if any) trackers are
+  // configured below, so the live activity feed is useful from day one.
+  logTrackingEvent('pageview');
 
   // --- Meta Pixel ---
   if (settings.meta_pixel_id && !window.__fbPixelLoaded) {
@@ -31,6 +80,7 @@ export function loadTrackingScripts(settings = {}) {
     /* eslint-enable */
     window.fbq('init', settings.meta_pixel_id);
     window.fbq('track', 'PageView');
+    logTrackingEvent('pixel_fired');
   }
 
   // --- Google Analytics (GA4) via gtag.js ---
@@ -45,6 +95,7 @@ export function loadTrackingScripts(settings = {}) {
     window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
     window.gtag('js', new Date());
     window.gtag('config', settings.ga4_measurement_id);
+    logTrackingEvent('ga4_fired');
   }
 
   // --- Google Tag Manager ---
@@ -62,6 +113,7 @@ export function loadTrackingScripts(settings = {}) {
       f.parentNode.insertBefore(j, f);
     })(window, document, 'script', 'dataLayer', settings.gtm_container_id);
     /* eslint-enable */
+    logTrackingEvent('gtm_fired');
   }
 }
 
@@ -71,6 +123,8 @@ export function trackPageView(settings = {}, url) {
   if (!settings || !(settings.tracking_enabled === '1' || settings.tracking_enabled === true)) {
     return;
   }
+
+  logTrackingEvent('pageview');
 
   if (window.__fbPixelLoaded && typeof window.fbq === 'function') {
     window.fbq('track', 'PageView');

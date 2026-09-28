@@ -40,7 +40,9 @@ import {
   ShieldCheck,
   CreditCard,
   EyeOff,
-  Radar
+  Radar,
+  Activity,
+  Wifi
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import InvoiceGenerator from '../components/admin/InvoiceGenerator';
@@ -53,6 +55,34 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
   useEffect(() => {
     localStorage.setItem('adminDashboardTab', activeTab);
+  }, [activeTab]);
+
+  const [liveStats, setLiveStats] = useState(null);
+  const [recentEvents, setRecentEvents] = useState([]);
+
+  useEffect(() => {
+    if (activeTab !== 'tracking' && activeTab !== 'overview') return undefined;
+
+    let cancelled = false;
+    const fetchLive = () => {
+      fetch('/dashboard/tracking/live', { headers: { Accept: 'application/json' } })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!cancelled && data) {
+            setLiveStats(data.stats);
+            setRecentEvents(data.recent || []);
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchLive();
+    const interval = setInterval(fetchLive, 8000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [activeTab]);
   const { settings = {}, auth } = usePage().props;
   const [faviconPreview, setFaviconPreview] = useState(settings.site_favicon || null);
@@ -762,8 +792,83 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     </div>
   );
 
+  const LIVE_EVENT_COLORS = {
+    pageview: '#64748B',
+    pixel_fired: '#1877F2',
+    ga4_fired: '#E37400',
+    gtm_fired: '#7C3AED'
+  };
+  const LIVE_EVENT_LABELS = {
+    pageview: 'Pageviews',
+    pixel_fired: 'Meta Pixel',
+    ga4_fired: 'GA4',
+    gtm_fired: 'GTM'
+  };
+
+  const LiveTrackingPieChart = ({ eventsByType = {} }) => {
+    const types = ['pageview', 'pixel_fired', 'ga4_fired', 'gtm_fired'];
+    const total = types.reduce((sum, t) => sum + (eventsByType[t] || 0), 0);
+
+    if (total === 0) {
+      return (
+        <div style={{ position: 'relative', width: '160px', height: '160px', margin: '0 auto' }}>
+          <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%' }}>
+            <path
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none"
+              stroke="#E2E8F0"
+              strokeWidth="4"
+            />
+          </svg>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 12px' }}>
+            <span style={{ fontSize: '12px', color: '#94A3B8', fontWeight: '600' }}>No activity yet today</span>
+          </div>
+        </div>
+      );
+    }
+
+    let cumulative = 0;
+    const segments = types
+      .filter(t => (eventsByType[t] || 0) > 0)
+      .map(t => {
+        const count = eventsByType[t] || 0;
+        const pct = (count / total) * 100;
+        const offset = -cumulative;
+        cumulative += pct;
+        return { type: t, count, pct, offset };
+      });
+
+    return (
+      <div style={{ position: 'relative', width: '160px', height: '160px', margin: '0 auto' }}>
+        <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%' }}>
+          <path
+            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            fill="none"
+            stroke="var(--color-light)"
+            strokeWidth="4"
+          />
+          {segments.map(seg => (
+            <path
+              key={seg.type}
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none"
+              stroke={LIVE_EVENT_COLORS[seg.type]}
+              strokeWidth="4"
+              strokeDasharray={`${seg.pct}, 100`}
+              strokeDashoffset={seg.offset}
+            />
+          ))}
+        </svg>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', lineHeight: '1' }}>{total}</span>
+          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>Events Today</span>
+        </div>
+      </div>
+    );
+  };
+
   // --- RENDER TABS ---
-  
+
   const profileForm = useForm({
     name: usePage().props.auth.user.name,
     email: usePage().props.auth.user.email,
@@ -970,6 +1075,70 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           <button style={{ backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', marginTop: 'auto', width: '100%', cursor: 'pointer' }}>View Sales Report</button>
         </div>
 
+      </div>
+
+      {/* Live Pixel Tracking */}
+      <style>{`@keyframes overviewPulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } }`}</style>
+      <div style={{ backgroundColor: '#FFFFFF', padding: '24px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', marginTop: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <h3 style={{ fontSize: '16px', color: '#0F172A', fontWeight: '800', margin: 0 }}>Live Pixel Tracking</h3>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#ECFDF5', color: '#059669', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '999px' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10B981', animation: 'overviewPulse 1.5s infinite' }}></span>
+                Live
+              </span>
+            </div>
+            <span style={{ fontSize: '13px', color: '#64748B' }}>Real-time site activity, updated every 8s</span>
+          </div>
+          <button
+            onClick={() => setActiveTab('tracking')}
+            style={{ backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            View Full Tracking Dashboard →
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '32px', alignItems: 'center' }}>
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px', marginBottom: '8px' }}>
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Pageviews Today</span>
+                <p style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: '6px 0 0 0' }}>{liveStats ? liveStats.today_pageviews : '—'}</p>
+              </div>
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Unique Visitors</span>
+                <p style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: '6px 0 0 0' }}>{liveStats ? liveStats.today_unique_sessions : '—'}</p>
+              </div>
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Events (5 min)</span>
+                <p style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: '6px 0 0 0' }}>{liveStats ? liveStats.last_5_min_events : '—'}</p>
+              </div>
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Active Trackers</span>
+                <p style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: '6px 0 0 0' }}>
+                  {liveStats ? ['pixel_fired', 'ga4_fired', 'gtm_fired'].filter(k => ((liveStats.today_events_by_type || {})[k] || 0) > 0).length : '—'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: '16px' }}>
+              {['pageview', 'pixel_fired', 'ga4_fired', 'gtm_fired'].filter(t => ((liveStats?.today_events_by_type || {})[t] || 0) > 0).map(t => {
+                const eventsByType = liveStats?.today_events_by_type || {};
+                const total = Object.values(eventsByType).reduce((a, b) => a + b, 0) || 1;
+                const pct = Math.round((eventsByType[t] / total) * 100);
+                return (
+                  <span key={t} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#334155', fontWeight: '600' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: LIVE_EVENT_COLORS[t] }}></span>
+                    {LIVE_EVENT_LABELS[t]} <span style={{ color: '#0F172A', fontWeight: '800' }}>{pct}%</span>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          <LiveTrackingPieChart eventsByType={liveStats?.today_events_by_type || {}} />
+        </div>
       </div>
     </div>
   );
@@ -1568,9 +1737,94 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       </div>
     );
 
+    const relativeTime = (dateStr) => {
+      const diffMs = Date.now() - new Date(dateStr).getTime();
+      const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+      if (diffSec < 60) return `${diffSec}s ago`;
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      return `${Math.floor(diffHr / 24)}d ago`;
+    };
+
+    const eventBadge = (type) => {
+      const map = {
+        pageview: { bg: '#F1F5F9', color: '#334155', label: 'Pageview' },
+        pixel_fired: { bg: '#E7F0FE', color: '#1877F2', label: 'Meta Pixel' },
+        ga4_fired: { bg: '#FDEEDB', color: '#E37400', label: 'GA4' },
+        gtm_fired: { bg: '#F1E9FB', color: '#7C3AED', label: 'GTM' }
+      };
+      const cfg = map[type] || { bg: '#F1F5F9', color: '#64748B', label: type };
+      return (
+        <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '999px', backgroundColor: cfg.bg, color: cfg.color, fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+          {cfg.label}
+        </span>
+      );
+    };
+
+    const eventsByType = liveStats?.today_events_by_type || {};
+    const activeTrackers = ['pixel_fired', 'ga4_fired', 'gtm_fired'].filter(k => (eventsByType[k] || 0) > 0).length;
+
+    const StatCard = ({ label, value, icon, live }) => (
+      <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '20px', flex: '1 1 200px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{label}</span>
+          {live ? (
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 0 rgba(16,185,129,0.4)', animation: 'pulse 1.5s infinite' }}></span>
+          ) : icon}
+        </div>
+        <p style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', margin: 0 }}>{value}</p>
+      </div>
+    );
+
     return (
       <div className="admin-panel-section">
+        <style>{`@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } }`}</style>
         <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', marginBottom: '24px' }}>Tracking & Pixels</h2>
+
+        <div style={{ backgroundColor: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E2E8F0', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <Activity size={20} color="var(--color-primary)" />
+            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Live Site Activity</h3>
+          </div>
+          <p style={{ fontSize: '13px', color: '#94A3B8', margin: '4px 0 20px 0' }}>
+            Real-time visits and tracker fires captured from your own site. This is independent of Meta/Google's own ad reporting dashboards.
+          </p>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+            <StatCard label="Today's Pageviews" value={liveStats ? liveStats.today_pageviews : '—'} icon={<Eye size={16} color="#94A3B8" />} />
+            <StatCard label="Unique Visitors Today" value={liveStats ? liveStats.today_unique_sessions : '—'} icon={<Wifi size={16} color="#94A3B8" />} />
+            <StatCard label="Events (Last 5 min)" value={liveStats ? liveStats.last_5_min_events : '—'} live />
+            <StatCard label="Active Trackers" value={liveStats ? activeTrackers : '—'} icon={<Radar size={16} color="#94A3B8" />} />
+          </div>
+
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+              Recent Activity
+            </div>
+            <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+              {recentEvents.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                  No activity recorded yet.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <tbody>
+                    {recentEvents.map(ev => (
+                      <tr key={ev.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '10px 16px', color: '#94A3B8', whiteSpace: 'nowrap', width: '90px' }}>{relativeTime(ev.created_at)}</td>
+                        <td style={{ padding: '10px 16px', width: '110px' }}>{eventBadge(ev.event_type)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: '600', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.page_url}</td>
+                        <td style={{ padding: '10px 16px', color: '#64748B', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.referrer || 'Direct'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
 
         <form onSubmit={handleTrackingSubmit} style={{ backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '16px', border: '1px solid #E2E8F0', display: 'grid', gap: '24px' }}>
           <Toggle

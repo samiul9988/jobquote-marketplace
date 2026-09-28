@@ -17,12 +17,14 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\PaymentSettingController;
+use App\Http\Controllers\TrackingEventController;
 
 Route::post('/quotes', [QuoteController::class, 'store']);
 Route::post('/find-tradesperson', [QuoteController::class, 'storeTrade']);
 Route::get('/find-tradesperson', fn () => \Inertia\Inertia::render('FindTradespersonPage'));
 Route::post('/contact', [ContactMessageController::class, 'store']);
 Route::post('/reviews', [ReviewController::class, 'store']);
+Route::post('/track-event', [TrackingEventController::class, 'store'])->middleware('throttle:60,1');
 
 Route::controller(FrontendController::class)->group(function () {
     Route::get('/', 'home');
@@ -65,6 +67,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // Global Settings
     Route::post('/dashboard/settings', [SettingController::class, 'update']);
     Route::post('/dashboard/settings/tracking', [SettingController::class, 'updateTracking']);
+    Route::get('/dashboard/tracking/live', [TrackingEventController::class, 'live']);
 
     // Payment Account Setup
     Route::post('/dashboard/payment-settings', [PaymentSettingController::class, 'update']);
