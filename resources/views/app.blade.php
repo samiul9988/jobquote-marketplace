@@ -11,7 +11,7 @@
         @endif
     <title>SK Home Solutions</title>
     @viteReactRefresh
-    @vite(['resources/js/app.jsx', 'resources/js/index.css'])
+    @vite(['resources/js/App.jsx', 'resources/js/index.css'])
     @inertiaHead
   </head>
   <body>
