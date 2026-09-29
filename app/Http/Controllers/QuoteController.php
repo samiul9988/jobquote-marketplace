@@ -40,12 +40,17 @@ class QuoteController extends Controller
 
     public function storeTrade(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'trade' => 'required|string|max:255',
             'answers' => 'required|string',
             'description' => 'nullable|string|max:5000',
             'photos' => 'nullable|array|max:5',
             'photos.*' => 'image|max:5120',
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'email' => 'required|email|max:255',
+            'address' => 'nullable|string|max:500',
+            'postcode' => 'required|string|max:10',
         ]);
 
         $answers = json_decode($request->input('answers'), true);
@@ -67,16 +72,19 @@ class QuoteController extends Controller
         }
 
         $customer = $this->findOrCreateCustomer([
-            'name' => 'Website enquiry',
-            'email' => '',
-            'phone' => '',
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'address' => $validated['address'],
         ], 'Find a Tradesperson');
 
         Quote::create([
             'customer_id' => $customer->id,
-            'name' => 'Website enquiry',
-            'email' => '',
-            'phone' => '',
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'address' => $validated['address'],
+            'postcode' => $validated['postcode'],
             'service' => $request->input('trade'),
             'message' => implode("\n", $lines),
             'details' => $answers,

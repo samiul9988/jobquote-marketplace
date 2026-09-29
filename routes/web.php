@@ -25,6 +25,8 @@ Route::get('/find-tradesperson', fn () => \Inertia\Inertia::render('FindTradespe
 Route::post('/contact', [ContactMessageController::class, 'store']);
 Route::post('/reviews', [ReviewController::class, 'store']);
 Route::post('/track-event', [TrackingEventController::class, 'store'])->middleware('throttle:60,1');
+Route::post('/find-tradesperson/login', [AuthController::class, 'ajaxLogin']);
+Route::post('/find-tradesperson/register', [AuthController::class, 'ajaxRegister']);
 
 Route::controller(FrontendController::class)->group(function () {
     Route::get('/', 'home');

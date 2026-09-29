@@ -92,7 +92,25 @@ const GEN = {
     { v: 'Repair / refurbishment', d: 'Repair boards, joists or steps' },
     { v: 'Clean, oil or stain', d: 'Cleaning and treating existing decking' },
     'Other'] },
+  budget: {
+    title: "What's your estimated budget?",
+    note: "Don't worry, you're not committing to anything here but bear in mind that more tradespeople are likely to give you a quote if you give a reasonable budget for the job.",
+    opts: ['Under £250', 'Under £500', 'Under £1,000', 'Under £2,000', 'Under £4,000', 'Under £8,000', 'Under £15,000', 'Under £30,000', 'Over £30,000', 'Not Sure'],
+  },
+  timeline: {
+    title: 'When would you like the work to start?',
+    note: 'Please let us know when you plan on getting the job done. If it\'s not urgent then just select "flexible".',
+    opts: ['Asap', 'Within 2 days', 'Within 2 weeks', 'Within 2 months', 'Flexible'],
+  },
 };
+
+function pluralTrade(label) {
+  const l = (label || '').split(/[\s/]/)[0].toLowerCase();
+  if (!l) return 'tradespeople';
+  if (l.endsWith('y')) return l.slice(0, -1) + 'ies';
+  if (l.endsWith('s')) return l;
+  return l + 's';
+}
 
 const card = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 4 };
 const heading = { fontSize: 16, fontWeight: 700, color: '#3B4257', margin: '0 0 12px' };
@@ -153,10 +171,17 @@ export default function FindTradespersonPage() {
   const [a, setA] = useState({});
   const [stage, setStage] = useState(0);
   const [desc, setDesc] = useState('');
+  const [location, setLocation] = useState('');
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [errors, setErrors] = useState({});
+  const [nearbyCount] = useState(() => 150 + Math.floor(Math.random() * 150));
+
+  // Contact step state (no login required)
+  const [guestContact, setGuestContact] = useState({ name: '', phone: '', email: '', address: '', postcode: '' });
+  const [guestErrors, setGuestErrors] = useState([]);
+
   const fileRef = useRef();
   const endRef = useRef();
   const cfg = TRADES[trade];
@@ -211,7 +236,7 @@ export default function FindTradespersonPage() {
     }
     if (a.outInvolve === 'Decking') steps.push('deckWork');
   }
-  steps.push('desc', 'photos');
+  steps.push('desc', 'location', 'budget', 'timeline', 'contact', 'photos');
 
   useEffect(() => {
     if (stage > 0 && endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -244,6 +269,20 @@ export default function FindTradespersonPage() {
   const addPhotos = (e) => {
     setPhotos([...photos, ...Array.from(e.target.files)].slice(0, 5));
     e.target.value = '';
+  };
+
+  const validateGuest = () => {
+    const msgs = [];
+    if (!guestContact.name.trim()) msgs.push('Full name is required.');
+    if (!guestContact.phone.trim()) msgs.push('A valid phone number is required.');
+    if (!guestContact.email.trim()) {
+      msgs.push('Email address is required.');
+    } else if (!/^\S+@\S+\.\S+$/.test(guestContact.email.trim())) {
+      msgs.push('Please enter a valid email address.');
+    }
+    if (!guestContact.postcode.trim()) msgs.push('Post code is required.');
+    setGuestErrors(msgs);
+    return msgs.length === 0;
   };
 
   const submit = () => {
@@ -280,6 +319,11 @@ export default function FindTradespersonPage() {
     fd.append('trade', cfg.label);
     fd.append('answers', JSON.stringify(answers));
     fd.append('description', desc);
+    fd.append('name', guestContact.name);
+    fd.append('phone', guestContact.phone);
+    fd.append('email', guestContact.email);
+    fd.append('address', guestContact.address);
+    fd.append('postcode', guestContact.postcode || location);
     photos.forEach((p) => fd.append('photos[]', p));
     router.post('/find-tradesperson', fd, {
       forceFormData: true,
@@ -508,7 +552,7 @@ export default function FindTradespersonPage() {
               </Block>
             )}
 
-            {steps.filter((k) => GEN[k] && show(k)).map((k) => {
+            {steps.filter((k) => GEN[k] && show(k) && k !== 'budget' && k !== 'timeline').map((k) => {
               const g = GEN[k];
               const ok = g.multi ? (a[k] || []).length > 0 : !!a[k];
               return (
@@ -526,6 +570,59 @@ export default function FindTradespersonPage() {
                 </p>
                 <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={6} style={{ ...input, resize: 'vertical' }} />
                 <Btn onClick={() => next('desc')}>Continue</Btn>
+              </Block>
+            )}
+
+            {show('location') && (
+              <Block title="Job Location">
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px' }}>
+                  Please enter the postcode for the job so that we can match up local relevant tradespeople.
+                </p>
+                <input type="text" placeholder="SW1A 1AA" value={location} onChange={(e) => setLocation(e.target.value.toUpperCase())} style={input} />
+                <Btn disabled={!location.trim()} onClick={() => next('location')}>Continue</Btn>
+              </Block>
+            )}
+
+            {show('budget') && (
+              <>
+                <p style={{ fontSize: 14, color: '#3B4257', fontWeight: 600, margin: '0 0 16px' }}>
+                  Great news! We've found {nearbyCount} {pluralTrade(cfg.label)} near you. We'll contact the best of these tradesmen on your behalf. No obligations. You don't have to hire anyone.
+                </p>
+                <Block title={GEN.budget.title} note={GEN.budget.note}>
+                  <Options options={GEN.budget.opts} value={a.budget} onChange={(v) => set('budget', v)} />
+                  <Btn disabled={!a.budget} onClick={() => next('budget')}>Continue</Btn>
+                </Block>
+              </>
+            )}
+
+            {show('timeline') && (
+              <Block title={GEN.timeline.title} note={GEN.timeline.note}>
+                <Options options={GEN.timeline.opts} value={a.timeline} onChange={(v) => set('timeline', v)} />
+                <Btn disabled={!a.timeline} onClick={() => next('timeline')}>Continue</Btn>
+              </Block>
+            )}
+
+            {show('contact') && (
+              <Block title="Your contact details">
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px' }}>
+                  Please leave us your details so our tradespeople can send you accurate quotes. No account or sign in is needed.
+                </p>
+                <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Name:</label>
+                <input type="text" value={guestContact.name} onChange={(e) => setGuestContact({ ...guestContact, name: e.target.value })} style={input} />
+                <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Phone No:</label>
+                <input type="tel" value={guestContact.phone} onChange={(e) => setGuestContact({ ...guestContact, phone: e.target.value })} style={input} />
+                <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Email Address:</label>
+                <input type="email" value={guestContact.email} onChange={(e) => setGuestContact({ ...guestContact, email: e.target.value })} style={input} />
+                <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Address:</label>
+                <input type="text" value={guestContact.address} onChange={(e) => setGuestContact({ ...guestContact, address: e.target.value })} style={input} />
+                <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Post Code:</label>
+                <input type="text" placeholder="SW1A 1AA" value={guestContact.postcode} onChange={(e) => setGuestContact({ ...guestContact, postcode: e.target.value.toUpperCase() })} style={input} />
+                {guestErrors.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    {guestErrors.map((m, i) => <p key={i} style={{ color: '#DC2626', fontSize: 13, margin: '4px 0' }}>{m}</p>)}
+                  </div>
+                )}
+                <Btn onClick={() => { if (validateGuest()) next('contact'); }}>Get Quotes</Btn>
               </Block>
             )}
 

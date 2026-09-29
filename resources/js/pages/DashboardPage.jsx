@@ -42,7 +42,10 @@ import {
   EyeOff,
   Radar,
   Activity,
-  Wifi
+  Wifi,
+  ChevronUp,
+  ChevronDown,
+  Download
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import InvoiceGenerator from '../components/admin/InvoiceGenerator';
@@ -163,6 +166,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerStatusFilter, setCustomerStatusFilter] = useState('All');
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [customerSortKey, setCustomerSortKey] = useState('name');
+  const [customerSortDir, setCustomerSortDir] = useState('asc');
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [noteText, setNoteText] = useState('');
@@ -2095,18 +2100,23 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                 <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
                   {/* Lead Metadata Info Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                    {!(inboxSubTab === 'quotes' && selectedItem.details) && (
-                      <>
                     <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
                       <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Email Address</span>
-                      <a href={"mailto:" + selectedItem.email} style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}>{selectedItem.email}</a>
+                      {selectedItem.email ? (
+                        <a href={"mailto:" + selectedItem.email} style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}>{selectedItem.email}</a>
+                      ) : (
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>N/A</span>
+                      )}
                     </div>
                     <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
                       <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Phone Number</span>
                       <a href={"tel:" + selectedItem.phone} style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', textDecoration: 'none' }}>{selectedItem.phone || 'N/A'}</a>
                     </div>
-                    
-                      </>
+                    {inboxSubTab === 'quotes' && selectedItem.details && (selectedItem.address || selectedItem.postcode) && (
+                      <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                        <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Address / Postcode</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{[selectedItem.address, selectedItem.postcode].filter(Boolean).join(', ') || 'N/A'}</span>
+                      </div>
                     )}
 
                     {inboxSubTab === 'quotes' && selectedItem.details ? (
@@ -2226,11 +2236,92 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     };
 
+    const getLastActivity = (c) => {
+      const dates = [...(c.quotes || []).map(q => q.created_at), c.updated_at, c.created_at].filter(Boolean).map(d => new Date(d).getTime());
+      if (dates.length === 0) return null;
+      return new Date(Math.max(...dates));
+    };
+
     const filteredCustomers = customers.filter(c => {
       const matchesSearch = !customerSearch || [c.name, c.email, c.phone].filter(Boolean).some(v => v.toLowerCase().includes(customerSearch.toLowerCase()));
       const matchesStatus = customerStatusFilter === 'All' || c.status === customerStatusFilter;
       return matchesSearch && matchesStatus;
     });
+
+    const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+      let aVal, bVal;
+      switch (customerSortKey) {
+        case 'email': aVal = a.email || ''; bVal = b.email || ''; break;
+        case 'phone': aVal = a.phone || ''; bVal = b.phone || ''; break;
+        case 'address': aVal = a.address || ''; bVal = b.address || ''; break;
+        case 'status': aVal = a.status || ''; bVal = b.status || ''; break;
+        case 'quotes': aVal = (a.quotes || []).length; bVal = (b.quotes || []).length; break;
+        case 'lastActivity': {
+          const ad = getLastActivity(a); const bd = getLastActivity(b);
+          aVal = ad ? ad.getTime() : 0; bVal = bd ? bd.getTime() : 0;
+          break;
+        }
+        case 'name':
+        default: aVal = a.name || ''; bVal = b.name || ''; break;
+      }
+      if (typeof aVal === 'string') {
+        const cmp = aVal.toLowerCase().localeCompare(bVal.toLowerCase());
+        return customerSortDir === 'asc' ? cmp : -cmp;
+      }
+      const cmp = aVal - bVal;
+      return customerSortDir === 'asc' ? cmp : -cmp;
+    });
+
+    const toggleCustomerSort = (key) => {
+      if (customerSortKey === key) {
+        setCustomerSortDir(customerSortDir === 'asc' ? 'desc' : 'asc');
+      } else {
+        setCustomerSortKey(key);
+        setCustomerSortDir('asc');
+      }
+    };
+
+    const csvEscape = (val) => {
+      const str = (val === null || val === undefined) ? '' : String(val);
+      if (/[",\n]/.test(str)) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+
+    const exportCustomersToCsv = () => {
+      const headers = ['Name', 'Email', 'Phone', 'Address', 'Status', 'Source', 'Quote Count', 'Created At'];
+      const rows = filteredCustomers.map(c => [
+        c.name || '',
+        c.email || '',
+        c.phone || '',
+        c.address || '',
+        c.status || '',
+        c.source || '',
+        (c.quotes || []).length,
+        c.created_at ? new Date(c.created_at).toLocaleDateString() : ''
+      ]);
+      const csvContent = [headers, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `customers-export-${dateStr}.csv`);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    const columns = [
+      { key: 'name', label: 'Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'phone', label: 'Phone' },
+      { key: 'address', label: 'Address' },
+      { key: 'status', label: 'Status' },
+    ];
 
     const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
@@ -2257,9 +2348,14 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
             <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Customer Management</h2>
             <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Track leads, contacts and their quote history in one place.</p>
           </div>
-          <button onClick={openAddCustomerModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
-            <UserPlus size={18} /> Add Customer
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={exportCustomersToCsv} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: '#FFFFFF', color: 'var(--color-primary)', border: '1px solid #E2E8F0', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s' }}>
+              <Download size={18} /> Export to Excel
+            </button>
+            <button onClick={openAddCustomerModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
+              <UserPlus size={18} /> Add Customer
+            </button>
+          </div>
         </div>
 
         {/* Stats row */}
@@ -2273,9 +2369,9 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
         {/* Split Pane Container */}
         <div style={{ display: 'flex', flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', minHeight: 0 }}>
 
-          {/* Left Panel: List view */}
-          <div style={{ width: '380px', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {/* Left Panel: Spreadsheet-style list view */}
+          <div style={{ width: '640px', maxWidth: '58%', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+            <div style={{ padding: '16px', borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
               <input
                 type="text"
                 placeholder="Search by name, email or phone..."
@@ -2295,47 +2391,107 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
               </select>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {filteredCustomers.length === 0 ? (
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', maxHeight: '100%' }}>
+              {sortedCustomers.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
                   No customers found.
                 </div>
               ) : (
-                filteredCustomers.map(customer => {
-                  const isActive = customer.id === selectedCustomerId;
-                  const statusStyle = customerStatusColors[customer.status] || customerStatusColors.Lead;
-                  const quoteCount = (customer.quotes || []).length;
-                  return (
-                    <div
-                      key={customer.id}
-                      onClick={() => setSelectedCustomerId(customer.id)}
-                      style={{
-                        padding: '18px 16px',
-                        borderBottom: '1px solid #E2E8F0',
-                        cursor: 'pointer',
-                        backgroundColor: isActive ? '#FFFFFF' : 'transparent',
-                        borderLeft: isActive ? '4px solid var(--color-secondary)' : '4px solid transparent',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseOver={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = '#F1F5F9'; }}
-                      onMouseOut={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <span style={{ fontWeight: '800', fontSize: '14px', color: '#0F172A' }}>{customer.name}</span>
-                        <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: statusStyle.bg, color: statusStyle.color }}>
-                          {customer.status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#64748B', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', marginBottom: '8px' }}>
-                        {customer.email || customer.phone || 'No contact info'}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', color: '#94A3B8' }}>{quoteCount} quote{quoteCount === 1 ? '' : 's'}</span>
-                        <span style={{ fontSize: '11px', color: '#94A3B8' }}>{new Date(customer.created_at).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  );
-                })
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                  <thead>
+                    <tr>
+                      {columns.map(col => {
+                        const isSorted = customerSortKey === col.key;
+                        return (
+                          <th
+                            key={col.key}
+                            onClick={() => toggleCustomerSort(col.key)}
+                            style={{
+                              position: 'sticky', top: 0, zIndex: 1,
+                              padding: '10px 12px', fontSize: '11px', fontWeight: '700', color: '#64748B',
+                              backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0',
+                              cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {col.label}
+                              {isSorted && (customerSortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+                            </div>
+                          </th>
+                        );
+                      })}
+                      <th style={{
+                        position: 'sticky', top: 0, right: 0, zIndex: 2,
+                        padding: '10px 12px', fontSize: '11px', fontWeight: '700', color: '#64748B',
+                        backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', borderLeft: '1px solid #E2E8F0',
+                        whiteSpace: 'nowrap', textAlign: 'right'
+                      }}>
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedCustomers.map((customer, idx) => {
+                      const isActive = customer.id === selectedCustomerId;
+                      const statusStyle = customerStatusColors[customer.status] || customerStatusColors.Lead;
+                      const baseBg = isActive ? 'var(--color-primary-light)' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC');
+                      return (
+                        <tr
+                          key={customer.id}
+                          onClick={() => setSelectedCustomerId(customer.id)}
+                          style={{
+                            cursor: 'pointer',
+                            backgroundColor: baseBg,
+                            borderLeft: isActive ? '4px solid var(--color-secondary)' : '4px solid transparent',
+                            transition: 'background-color 0.15s ease'
+                          }}
+                          onMouseOver={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = '#EEF2F7'; }}
+                          onMouseOut={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = baseBg; }}
+                        >
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', fontWeight: '700', color: '#0F172A', whiteSpace: 'nowrap' }}>
+                            {customer.name || 'Unnamed'}
+                          </td>
+                          <td title={customer.email || ''} style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {customer.email || '—'}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', whiteSpace: 'nowrap' }}>
+                            {customer.phone || '—'}
+                          </td>
+                          <td title={customer.address || ''} style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {customer.address || '—'}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0' }}>
+                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
+                              {customer.status}
+                            </span>
+                          </td>
+                          <td style={{
+                            position: 'sticky', right: 0, zIndex: 1,
+                            padding: '8px 12px', borderBottom: '1px solid #E2E8F0', borderLeft: '1px solid #E2E8F0',
+                            backgroundColor: baseBg, whiteSpace: 'nowrap', textAlign: 'right'
+                          }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openEditCustomerModal(customer); }}
+                                style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}
+                                title="Edit"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); deleteCustomer(customer.id); }}
+                                style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>
