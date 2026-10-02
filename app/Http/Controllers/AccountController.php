@@ -7,6 +7,13 @@ use App\Models\User;
 
 class AccountController extends Controller
 {
+    /**
+     * Module keys a staff account's dashboard access can be restricted to.
+     * Mirrors the sidebar group ids in the admin panel (Overview & Time Clock
+     * are always available to every staff account, so they're not listed here).
+     */
+    public const MODULES = ['crm', 'sales', 'finance', 'website', 'system'];
+
     public function store(Request $request)
     {
         if ($request->user()->role !== 'admin') {
@@ -19,6 +26,8 @@ class AccountController extends Controller
             'password' => 'required|string|min:8',
             'role' => 'required|in:admin,staff',
             'hourly_rate' => 'nullable|numeric|min:0',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'in:' . implode(',', self::MODULES),
         ]);
 
         User::create([
@@ -26,6 +35,7 @@ class AccountController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'permissions' => $validated['role'] === 'admin' ? null : array_values($validated['permissions'] ?? []),
             'hourly_rate' => $validated['hourly_rate'] ?? null,
             'is_active' => true,
             'email_verified_at' => now(),
@@ -48,6 +58,8 @@ class AccountController extends Controller
             'role' => 'required|in:admin,staff',
             'password' => 'nullable|string|min:8',
             'hourly_rate' => 'nullable|numeric|min:0',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'in:' . implode(',', self::MODULES),
         ]);
 
         if ($id == $request->user()->id && $validated['role'] !== 'admin') {
@@ -58,6 +70,7 @@ class AccountController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => $validated['role'],
+            'permissions' => $validated['role'] === 'admin' ? null : array_values($validated['permissions'] ?? []),
             'hourly_rate' => $validated['hourly_rate'] ?? null,
         ];
 

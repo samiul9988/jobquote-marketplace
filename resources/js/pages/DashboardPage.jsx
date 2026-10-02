@@ -213,14 +213,28 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     email: '',
     password: '',
     role: 'staff',
-    hourly_rate: ''
+    hourly_rate: '',
+    permissions: []
   });
+
+  const moduleOptions = [
+    { key: 'crm', label: 'Customers & Leads' },
+    { key: 'sales', label: 'Sales & Projects' },
+    { key: 'finance', label: 'Account Management' },
+    { key: 'website', label: 'Website Content' },
+    { key: 'system', label: 'Settings & System' },
+  ];
+
+  const toggleAccountPermission = (key) => {
+    const current = accountForm.data.permissions || [];
+    accountForm.setData('permissions', current.includes(key) ? current.filter(k => k !== key) : [...current, key]);
+  };
 
   const openAddAccountModal = () => {
     setEditingAccount(null);
     accountForm.reset();
     accountForm.clearErrors();
-    accountForm.setData({ name: '', email: '', password: '', role: 'staff', hourly_rate: '' });
+    accountForm.setData({ name: '', email: '', password: '', role: 'staff', hourly_rate: '', permissions: [] });
     setIsAccountModalOpen(true);
   };
 
@@ -232,7 +246,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       email: account.email || '',
       password: '',
       role: account.role || 'staff',
-      hourly_rate: account.hourly_rate || ''
+      hourly_rate: account.hourly_rate || '',
+      permissions: account.permissions || []
     });
     setIsAccountModalOpen(true);
   };
@@ -713,7 +728,12 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     e.preventDefault();
     payrollForm.post('/dashboard/payroll/generate', {
       preserveScroll: true,
-      onSuccess: () => { setIsPayrollModalOpen(false); payrollForm.reset(); }
+      onSuccess: () => {
+        if (!payrollForm.hasErrors) {
+          setIsPayrollModalOpen(false);
+          payrollForm.reset();
+        }
+      }
     });
   };
 
@@ -1189,15 +1209,26 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
         ...(auth?.user?.role === 'admin' ? [{ id: 'accounts', label: 'Account Management', icon: ShieldCheck }] : []),
       ]
     },
-  ];
+  ].filter(g => g.type === 'single' || auth?.user?.role === 'admin' || (auth?.user?.permissions || []).includes(g.id));
 
   // Build a lookup of childId -> parentGroupId, so we can auto-expand the right group
   const childToGroupMap = {};
+  const allowedTabIds = new Set(['overview', 'timeclock']);
   navGroups.forEach(g => {
+    allowedTabIds.add(g.id);
     if (g.type === 'group') {
-      g.children.forEach(c => { childToGroupMap[c.id] = g.id; });
+      g.children.forEach(c => { childToGroupMap[c.id] = g.id; allowedTabIds.add(c.id); });
     }
   });
+
+  // If a staff member's module access was revoked while they still have an old
+  // tab remembered (e.g. from localStorage), bounce them back to the Overview.
+  useEffect(() => {
+    if (auth?.user?.role !== 'admin' && !allowedTabIds.has(activeTab)) {
+      setActiveTab('overview');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, auth?.user?.permissions]);
 
   const [expandedGroups, setExpandedGroups] = useState(() => {
     try {
@@ -5967,6 +5998,11 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
               </div>
               <form onSubmit={handlePayrollSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                 <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {payrollForm.errors.payroll && (
+                    <div style={{ padding: '12px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', color: '#B91C1C', fontSize: '13px', fontWeight: '600' }}>
+                      {payrollForm.errors.payroll}
+                    </div>
+                  )}
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Staff *</label>
                     <select required value={payrollForm.data.user_id} onChange={(e) => payrollForm.setData('user_id', e.target.value)}
@@ -6562,6 +6598,25 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                   </select>
                   {accountForm.errors.role && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.role}</div>}
                 </div>
+
+                {accountForm.data.role === 'staff' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Module Access</label>
+                    <p style={{ fontSize: '12px', color: '#94A3B8', margin: '0 0 10px 0' }}>Choose which sidebar sections this staff member can see. Overview and Time Clock are always available.</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', border: '1px solid #E2E8F0', borderRadius: '8px', backgroundColor: '#F8FAFC' }}>
+                      {moduleOptions.map(mod => (
+                        <label key={mod.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={(accountForm.data.permissions || []).includes(mod.key)}
+                            onChange={() => toggleAccountPermission(mod.key)}
+                          />
+                          {mod.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Hourly Rate (£)</label>
