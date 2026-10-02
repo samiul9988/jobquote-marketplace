@@ -45,12 +45,33 @@ import {
   Wifi,
   ChevronUp,
   ChevronDown,
-  Download
+  ChevronRight,
+  Download,
+  Wallet,
+  Clock,
+  Upload,
+  History,
+  Printer
 } from 'lucide-react';
 import Logo from '../components/common/Logo';
 import InvoiceGenerator from '../components/admin/InvoiceGenerator';
 
-export default function DashboardPage({ quotes = [], messages = [], jobPosts = [], reviews = [], projects = [], services = [], heroImages = [], faqs = [], customers = [], invoices = [], accounts = [] }) {
+function PageHeader({ eyebrow, title, subtitle, action }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+      <div>
+        <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+          {eyebrow}
+        </div>
+        <h2 style={{ fontSize: '26px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.5px' }}>{title}</h2>
+        {subtitle ? <p style={{ fontSize: '14px', color: '#64748B', margin: '6px 0 0 0' }}>{subtitle}</p> : null}
+      </div>
+      {action ? <div>{action}</div> : null}
+    </div>
+  );
+}
+
+export default function DashboardPage({ quotes = [], messages = [], jobPosts = [], reviews = [], projects = [], services = [], heroImages = [], faqs = [], customers = [], invoices = [], accounts = [], workProjects = [], transactions = [], timeEntries = [], staffAdvances = [], salaryPayments = [], staffList = [], customerLogs = [], financeAccounts = [], suppliers = [], paymentAccounts = [] }) {
   const navigate = router.visit;
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('adminDashboardTab') || 'overview';
@@ -171,6 +192,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [noteText, setNoteText] = useState('');
+  const [customerImportFile, setCustomerImportFile] = useState(null);
+  const [customerLogSearch, setCustomerLogSearch] = useState('');
   const [invoiceView, setInvoiceView] = useState('list');
   const [activeInvoiceId, setActiveInvoiceId] = useState(null);
   const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -183,14 +206,15 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     name: '',
     email: '',
     password: '',
-    role: 'staff'
+    role: 'staff',
+    hourly_rate: ''
   });
 
   const openAddAccountModal = () => {
     setEditingAccount(null);
     accountForm.reset();
     accountForm.clearErrors();
-    accountForm.setData({ name: '', email: '', password: '', role: 'staff' });
+    accountForm.setData({ name: '', email: '', password: '', role: 'staff', hourly_rate: '' });
     setIsAccountModalOpen(true);
   };
 
@@ -201,7 +225,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       name: account.name || '',
       email: account.email || '',
       password: '',
-      role: account.role || 'staff'
+      role: account.role || 'staff',
+      hourly_rate: account.hourly_rate || ''
     });
     setIsAccountModalOpen(true);
   };
@@ -242,13 +267,54 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     email: '',
     phone: '',
     address: '',
-    status: 'Lead'
+    status: 'Lead',
+    credit_limit: 0
   });
+
+  const customerImportForm = useForm({
+    file: null
+  });
+
+  const handleCustomerImportSubmit = (e) => {
+    e.preventDefault();
+    if (!customerImportForm.data.file) return;
+    customerImportForm.post('/dashboard/customers/import', {
+      preserveScroll: true,
+      forceFormData: true,
+      onSuccess: () => {
+        customerImportForm.reset();
+        setCustomerImportFile(null);
+      }
+    });
+  };
+
+  const downloadSampleCustomerCsv = () => {
+    const headers = ['name', 'email', 'phone', 'address', 'status'];
+    const rows = [
+      ['John Smith', 'john.smith@example.com', '07700900123', '12 High Street, London', 'Lead'],
+      ['Jane Doe', 'jane.doe@example.com', '07700900456', '4 Park Lane, Manchester', 'Active'],
+    ];
+    const csvEscapeSample = (val) => {
+      const str = String(val ?? '');
+      return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+    };
+    const csvContent = [headers, ...rows].map(row => row.map(csvEscapeSample).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'customers-sample.csv');
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const openAddCustomerModal = () => {
     setEditingCustomer(null);
     customerForm.reset();
-    customerForm.setData({ name: '', email: '', phone: '', address: '', status: 'Lead' });
+    customerForm.setData({ name: '', email: '', phone: '', address: '', status: 'Lead', credit_limit: 0 });
     setIsCustomerModalOpen(true);
   };
 
@@ -259,7 +325,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       email: customer.email || '',
       phone: customer.phone || '',
       address: customer.address || '',
-      status: customer.status || 'Lead'
+      status: customer.status || 'Lead',
+      credit_limit: customer.credit_limit || 0
     });
     setIsCustomerModalOpen(true);
   };
@@ -308,6 +375,354 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     });
   };
   
+  // --- WORK PROJECTS (Projects) state/forms ---
+  const [selectedWorkProjectId, setSelectedWorkProjectId] = useState(null);
+  const [isWorkProjectModalOpen, setIsWorkProjectModalOpen] = useState(false);
+  const [editingWorkProject, setEditingWorkProject] = useState(null);
+  const workProjectForm = useForm({
+    title: '',
+    customer_id: '',
+    quote_id: '',
+    status: 'Active',
+    started_at: '',
+    notes: ''
+  });
+
+  const openAddWorkProjectModal = () => {
+    setEditingWorkProject(null);
+    workProjectForm.reset();
+    workProjectForm.setData({ title: '', customer_id: '', quote_id: '', status: 'Active', started_at: '', notes: '' });
+    setIsWorkProjectModalOpen(true);
+  };
+
+  const openEditWorkProjectModal = (wp) => {
+    setEditingWorkProject(wp);
+    workProjectForm.setData({
+      title: wp.title || '',
+      customer_id: wp.customer_id || '',
+      quote_id: wp.quote_id || '',
+      status: wp.status || 'Active',
+      started_at: wp.started_at ? String(wp.started_at).slice(0, 10) : '',
+      notes: wp.notes || ''
+    });
+    setIsWorkProjectModalOpen(true);
+  };
+
+  const handleWorkProjectSubmit = (e) => {
+    e.preventDefault();
+    if (editingWorkProject) {
+      workProjectForm.post(`/dashboard/work-projects/${editingWorkProject.id}`, {
+        preserveScroll: true,
+        onSuccess: () => { setIsWorkProjectModalOpen(false); workProjectForm.reset(); }
+      });
+    } else {
+      workProjectForm.post('/dashboard/work-projects', {
+        preserveScroll: true,
+        onSuccess: () => { setIsWorkProjectModalOpen(false); workProjectForm.reset(); }
+      });
+    }
+  };
+
+  const deleteWorkProject = (id) => {
+    if (confirm('Delete this project? This cannot be undone.')) {
+      router.delete(`/dashboard/work-projects/${id}`, {
+        preserveScroll: true,
+        onSuccess: () => { if (selectedWorkProjectId === id) setSelectedWorkProjectId(null); }
+      });
+    }
+  };
+
+  const updateWorkProjectStatus = (id, status) => {
+    router.post(`/dashboard/work-projects/${id}/status`, { status }, { preserveScroll: true });
+  };
+
+  // --- INCOME & EXPENSES (Transactions) state/forms ---
+  const [transactionSearch, setTransactionSearch] = useState('');
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState('All');
+  const [transactionProjectFilter, setTransactionProjectFilter] = useState('All');
+  const [transactionDateFrom, setTransactionDateFrom] = useState('');
+  const [transactionDateTo, setTransactionDateTo] = useState('');
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const transactionForm = useForm({
+    type: 'expense',
+    amount: '',
+    category: '',
+    description: '',
+    work_project_id: '',
+    finance_account_id: '',
+    supplier_id: '',
+    date: new Date().toISOString().slice(0, 10)
+  });
+
+  const openAddTransactionModal = () => {
+    transactionForm.reset();
+    transactionForm.setData({
+      type: 'expense', amount: '', category: '', description: '', work_project_id: '',
+      finance_account_id: '', supplier_id: '',
+      date: new Date().toISOString().slice(0, 10)
+    });
+    setIsTransactionModalOpen(true);
+  };
+
+  // --- Finance Accounts (Cash / Bank Management) ---
+  const [isFinanceAccountModalOpen, setIsFinanceAccountModalOpen] = useState(false);
+  const [editingFinanceAccount, setEditingFinanceAccount] = useState(null);
+  const financeAccountForm = useForm({ name: '', type: 'cash', account_number: '', opening_balance: 0, status: 'Active' });
+
+  const openAddFinanceAccountModal = () => {
+    setEditingFinanceAccount(null);
+    financeAccountForm.reset();
+    financeAccountForm.setData({ name: '', type: 'cash', account_number: '', opening_balance: 0, status: 'Active' });
+    setIsFinanceAccountModalOpen(true);
+  };
+
+  const openEditFinanceAccountModal = (account) => {
+    setEditingFinanceAccount(account);
+    financeAccountForm.setData({
+      name: account.name || '', type: account.type || 'cash', account_number: account.account_number || '',
+      opening_balance: account.opening_balance || 0, status: account.status || 'Active'
+    });
+    setIsFinanceAccountModalOpen(true);
+  };
+
+  const handleFinanceAccountSubmit = (e) => {
+    e.preventDefault();
+    const url = editingFinanceAccount ? `/dashboard/finance-accounts/${editingFinanceAccount.id}` : '/dashboard/finance-accounts';
+    financeAccountForm.post(url, {
+      preserveScroll: true,
+      onSuccess: () => { setIsFinanceAccountModalOpen(false); financeAccountForm.reset(); }
+    });
+  };
+
+  const deleteFinanceAccount = (id) => {
+    if (confirm('Delete this account? This cannot be undone.')) {
+      router.delete(`/dashboard/finance-accounts/${id}`, { preserveScroll: true });
+    }
+  };
+
+  // --- Suppliers (Supplier Payable) ---
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const supplierForm = useForm({ name: '', phone: '', email: '', address: '', opening_balance: 0, status: 'Active' });
+
+  const openAddSupplierModal = () => {
+    setEditingSupplier(null);
+    supplierForm.reset();
+    supplierForm.setData({ name: '', phone: '', email: '', address: '', opening_balance: 0, status: 'Active' });
+    setIsSupplierModalOpen(true);
+  };
+
+  const openEditSupplierModal = (supplier) => {
+    setEditingSupplier(supplier);
+    supplierForm.setData({
+      name: supplier.name || '', phone: supplier.phone || '', email: supplier.email || '',
+      address: supplier.address || '', opening_balance: supplier.opening_balance || 0, status: supplier.status || 'Active'
+    });
+    setIsSupplierModalOpen(true);
+  };
+
+  const handleSupplierSubmit = (e) => {
+    e.preventDefault();
+    const url = editingSupplier ? `/dashboard/suppliers/${editingSupplier.id}` : '/dashboard/suppliers';
+    supplierForm.post(url, {
+      preserveScroll: true,
+      onSuccess: () => { setIsSupplierModalOpen(false); supplierForm.reset(); }
+    });
+  };
+
+  const deleteSupplier = (id) => {
+    if (confirm('Delete this supplier? This cannot be undone.')) {
+      router.delete(`/dashboard/suppliers/${id}`, { preserveScroll: true });
+    }
+  };
+
+  // --- Payment Accounts (receiving accounts shown on public /payment-info page) ---
+  const [isPaymentAccountModalOpen, setIsPaymentAccountModalOpen] = useState(false);
+  const [editingPaymentAccount, setEditingPaymentAccount] = useState(null);
+  const paymentAccountForm = useForm({
+    label: '', type: 'bank', account_name: '', account_number: '', bank_name: '',
+    sort_code: '', iban: '', swift_code: '', instructions: '', order: 0, status: 'Active'
+  });
+
+  const blankPaymentAccount = { label: '', type: 'bank', account_name: '', account_number: '', bank_name: '', sort_code: '', iban: '', swift_code: '', instructions: '', order: 0, status: 'Active' };
+
+  const openAddPaymentAccountModal = () => {
+    setEditingPaymentAccount(null);
+    paymentAccountForm.reset();
+    paymentAccountForm.setData(blankPaymentAccount);
+    setIsPaymentAccountModalOpen(true);
+  };
+
+  const openEditPaymentAccountModal = (account) => {
+    setEditingPaymentAccount(account);
+    paymentAccountForm.setData({
+      label: account.label || '', type: account.type || 'bank', account_name: account.account_name || '',
+      account_number: account.account_number || '', bank_name: account.bank_name || '', sort_code: account.sort_code || '',
+      iban: account.iban || '', swift_code: account.swift_code || '', instructions: account.instructions || '',
+      order: account.order || 0, status: account.status || 'Active'
+    });
+    setIsPaymentAccountModalOpen(true);
+  };
+
+  const handlePaymentAccountSubmit = (e) => {
+    e.preventDefault();
+    const url = editingPaymentAccount ? `/dashboard/payment-accounts/${editingPaymentAccount.id}` : '/dashboard/payment-accounts';
+    paymentAccountForm.post(url, {
+      preserveScroll: true,
+      onSuccess: () => { setIsPaymentAccountModalOpen(false); paymentAccountForm.reset(); }
+    });
+  };
+
+  const deletePaymentAccount = (id) => {
+    if (confirm('Delete this payment account? This cannot be undone.')) {
+      router.delete(`/dashboard/payment-accounts/${id}`, { preserveScroll: true });
+    }
+  };
+
+  const handleTransactionSubmit = (e) => {
+    e.preventDefault();
+    transactionForm.post('/dashboard/transactions', {
+      preserveScroll: true,
+      onSuccess: () => { setIsTransactionModalOpen(false); transactionForm.reset(); }
+    });
+  };
+
+  const deleteTransaction = (id) => {
+    if (confirm('Delete this transaction? This cannot be undone.')) {
+      router.delete(`/dashboard/transactions/${id}`, { preserveScroll: true });
+    }
+  };
+
+  // --- TIME CLOCK (self-service) ---
+  const [clockProjectId, setClockProjectId] = useState('');
+
+  const clockIn = () => {
+    router.post('/dashboard/time-entries/clock-in', { work_project_id: clockProjectId || null }, { preserveScroll: true });
+  };
+
+  const clockOut = () => {
+    router.post('/dashboard/time-entries/clock-out', {}, { preserveScroll: true });
+  };
+
+  // --- TIME ENTRIES (admin manual corrections) ---
+  const [isTimeEntryModalOpen, setIsTimeEntryModalOpen] = useState(false);
+  const [editingTimeEntry, setEditingTimeEntry] = useState(null);
+  const timeEntryForm = useForm({
+    user_id: '',
+    work_project_id: '',
+    clock_in: '',
+    clock_out: '',
+    notes: ''
+  });
+
+  const openAddTimeEntryModal = () => {
+    setEditingTimeEntry(null);
+    timeEntryForm.reset();
+    timeEntryForm.clearErrors();
+    timeEntryForm.setData({ user_id: '', work_project_id: '', clock_in: '', clock_out: '', notes: '' });
+    setIsTimeEntryModalOpen(true);
+  };
+
+  const openEditTimeEntryModal = (entry) => {
+    setEditingTimeEntry(entry);
+    timeEntryForm.clearErrors();
+    timeEntryForm.setData({
+      user_id: entry.user_id || '',
+      work_project_id: entry.work_project_id || '',
+      clock_in: entry.clock_in ? String(entry.clock_in).slice(0, 16) : '',
+      clock_out: entry.clock_out ? String(entry.clock_out).slice(0, 16) : '',
+      notes: entry.notes || ''
+    });
+    setIsTimeEntryModalOpen(true);
+  };
+
+  const handleTimeEntrySubmit = (e) => {
+    e.preventDefault();
+    if (editingTimeEntry) {
+      timeEntryForm.post(`/dashboard/time-entries/${editingTimeEntry.id}`, {
+        preserveScroll: true,
+        onSuccess: () => { setIsTimeEntryModalOpen(false); timeEntryForm.reset(); }
+      });
+    } else {
+      timeEntryForm.post('/dashboard/time-entries', {
+        preserveScroll: true,
+        onSuccess: () => { setIsTimeEntryModalOpen(false); timeEntryForm.reset(); }
+      });
+    }
+  };
+
+  const deleteTimeEntry = (id) => {
+    if (confirm('Delete this time entry? This cannot be undone.')) {
+      router.delete(`/dashboard/time-entries/${id}`, { preserveScroll: true });
+    }
+  };
+
+  // --- STAFF ADVANCES ---
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const advanceForm = useForm({
+    user_id: '',
+    amount: '',
+    date: new Date().toISOString().slice(0, 10),
+    note: ''
+  });
+
+  const openAddAdvanceModal = () => {
+    advanceForm.reset();
+    advanceForm.clearErrors();
+    advanceForm.setData({ user_id: '', amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
+    setIsAdvanceModalOpen(true);
+  };
+
+  const handleAdvanceSubmit = (e) => {
+    e.preventDefault();
+    advanceForm.post('/dashboard/advances', {
+      preserveScroll: true,
+      onSuccess: () => { setIsAdvanceModalOpen(false); advanceForm.reset(); }
+    });
+  };
+
+  const deleteAdvance = (id) => {
+    if (confirm('Delete this advance? This cannot be undone.')) {
+      router.delete(`/dashboard/advances/${id}`, { preserveScroll: true });
+    }
+  };
+
+  // --- PAYROLL ---
+  const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
+  const payrollForm = useForm({
+    user_id: '',
+    period_start: '',
+    period_end: ''
+  });
+
+  const openGeneratePayrollModal = () => {
+    payrollForm.reset();
+    payrollForm.clearErrors();
+    payrollForm.setData({ user_id: '', period_start: '', period_end: '' });
+    setIsPayrollModalOpen(true);
+  };
+
+  const handlePayrollSubmit = (e) => {
+    e.preventDefault();
+    payrollForm.post('/dashboard/payroll/generate', {
+      preserveScroll: true,
+      onSuccess: () => { setIsPayrollModalOpen(false); payrollForm.reset(); }
+    });
+  };
+
+  const markPayrollPaid = (id) => {
+    if (confirm('Mark this salary payment as paid? This will post it to the ledger and cannot be undone.')) {
+      router.post(`/dashboard/payroll/${id}/pay`, {}, { preserveScroll: true });
+    }
+  };
+
+  const deletePayroll = (id) => {
+    if (confirm('Delete this salary record? This cannot be undone.')) {
+      router.delete(`/dashboard/payroll/${id}`, { preserveScroll: true });
+    }
+  };
+
   const jobForm = useForm({
     title: '',
     type: 'Full-Time / Subcontract',
@@ -716,23 +1131,116 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     setTimeout(() => setSaveMessage(''), 3000);
   };
 
-  const sidebarItems = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-
-    { id: 'home', label: 'Home Page CMS', icon: HomeIcon },
-    { id: 'about', label: 'About Us CMS', icon: Info },
-    { id: 'services', label: 'Services CMS', icon: Wrench },
-    { id: 'gallery', label: 'Gallery CMS', icon: ImageIcon },
-    { id: 'careers', label: 'Careers CMS', icon: Briefcase },
-    { id: 'settings', label: 'Global Settings', icon: Settings },
-    { id: 'tracking', label: 'Tracking & Pixels', icon: Radar },
-    { id: 'inbox', label: 'Inbox & Quotes', icon: Inbox },
-    { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'reviews_cms', label: 'Reviews CMS', icon: Star },
-    { id: 'invoices', label: 'Invoices', icon: FileText },
-    { id: 'payments', label: 'Payment Accounts', icon: CreditCard },
-    ...(auth?.user?.role === 'admin' ? [{ id: 'accounts', label: 'Account Management', icon: ShieldCheck }] : []),
+  const navGroups = [
+    { type: 'single', id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { type: 'single', id: 'timeclock', label: 'Time Clock', icon: Clock },
+    {
+      type: 'group', id: 'crm', label: 'Customers & Leads', icon: Users,
+      children: [
+        { id: 'customers_list', label: 'Customer List', icon: Users },
+        { id: 'customers_add', label: 'Add Customer', icon: UserPlus },
+        { id: 'customers_import', label: 'Customer Import', icon: Upload },
+        { id: 'customers_logs', label: 'Customer Logs', icon: History },
+        { id: 'inbox', label: 'Inbox & Quotes', icon: Inbox },
+        { id: 'reviews_cms', label: 'Reviews CMS', icon: Star },
+      ]
+    },
+    {
+      type: 'group', id: 'sales', label: 'Sales & Projects', icon: Briefcase,
+      children: [
+        { id: 'invoices', label: 'Invoices', icon: FileText },
+        { id: 'projects', label: 'Projects', icon: FolderKanban },
+      ]
+    },
+    {
+      type: 'group', id: 'finance', label: 'Account Management', icon: Wallet,
+      children: [
+        { id: 'finance', label: 'Income & Expenses', icon: Wallet },
+        { id: 'finance_accounts', label: 'Cash & Bank Accounts', icon: Wallet },
+        { id: 'finance_suppliers', label: 'Suppliers & Payable', icon: Briefcase },
+        { id: 'finance_receivables', label: 'Customer Receivable', icon: Users },
+        { id: 'finance_reports', label: 'Financial Reports', icon: FileText },
+        ...(auth?.user?.role === 'admin' ? [{ id: 'payroll', label: 'Payroll', icon: Wallet }] : []),
+      ]
+    },
+    {
+      type: 'group', id: 'website', label: 'Website Content', icon: HomeIcon,
+      children: [
+        { id: 'home', label: 'Home Page CMS', icon: HomeIcon },
+        { id: 'about', label: 'About Us CMS', icon: Info },
+        { id: 'services', label: 'Services CMS', icon: Wrench },
+        { id: 'gallery', label: 'Gallery CMS', icon: ImageIcon },
+        { id: 'careers', label: 'Careers CMS', icon: Briefcase },
+      ]
+    },
+    {
+      type: 'group', id: 'system', label: 'Settings & System', icon: Settings,
+      children: [
+        { id: 'settings', label: 'Global Settings', icon: Settings },
+        { id: 'tracking', label: 'Tracking & Pixels', icon: Radar },
+        { id: 'payments', label: 'Payment Gateway Setup', icon: CreditCard },
+        { id: 'payment_accounts', label: 'Payment Receiving Accounts', icon: Wallet },
+        ...(auth?.user?.role === 'admin' ? [{ id: 'accounts', label: 'Account Management', icon: ShieldCheck }] : []),
+      ]
+    },
   ];
+
+  // Build a lookup of childId -> parentGroupId, so we can auto-expand the right group
+  const childToGroupMap = {};
+  navGroups.forEach(g => {
+    if (g.type === 'group') {
+      g.children.forEach(c => { childToGroupMap[c.id] = g.id; });
+    }
+  });
+
+  const [expandedGroups, setExpandedGroups] = useState(() => {
+    try {
+      const saved = localStorage.getItem('adminSidebarExpandedGroups');
+      const parsed = saved ? JSON.parse(saved) : [];
+      const initial = new Set(Array.isArray(parsed) ? parsed : []);
+      const activeGroup = childToGroupMap[activeTab];
+      if (activeGroup) initial.add(activeGroup);
+      return initial;
+    } catch (e) {
+      const activeGroup = childToGroupMap[activeTab];
+      return new Set(activeGroup ? [activeGroup] : []);
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('adminSidebarExpandedGroups', JSON.stringify(Array.from(expandedGroups)));
+    } catch (e) {
+      // ignore storage errors
+    }
+  }, [expandedGroups]);
+
+  // Whenever activeTab changes (including via setActiveTab calls elsewhere, e.g. the
+  // Overview page's "View Full Tracking Dashboard" button, or a stale localStorage tab
+  // on load), make sure the group containing it is expanded.
+  useEffect(() => {
+    const activeGroup = childToGroupMap[activeTab];
+    if (activeGroup) {
+      setExpandedGroups(prev => {
+        if (prev.has(activeGroup)) return prev;
+        const next = new Set(prev);
+        next.add(activeGroup);
+        return next;
+      });
+    }
+  }, [activeTab]);
+
+  const toggleGroup = (groupId) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
 
   // --- MOCK CHARTS ---
   const BarChartMock = () => (
@@ -1707,6 +2215,155 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     );
   };
 
+  const paymentAccountTypeLabels = { bank: 'Bank Transfer', bkash: 'bKash', nagad: 'Nagad', paypal: 'PayPal', other: 'Other' };
+
+  const renderPaymentAccountsPage = () => {
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader
+          eyebrow="SETTINGS & SYSTEM"
+          title="Payment Receiving Accounts"
+          subtitle="These accounts are shown to customers on the public 'Make a Payment' page, linked from the homepage banner."
+          action={
+            <button onClick={openAddPaymentAccountModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)', color: '#FFF', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+              <Plus size={18} /> Add Account
+            </button>
+          }
+        />
+
+        <div style={{ padding: '14px 18px', backgroundColor: '#EFF6FF', border: '1px solid #DBEAFE', borderRadius: '12px', marginBottom: '20px', fontSize: '13px', color: '#1D4ED8' }}>
+          Public page: <a href="/payment-info" target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700' }}>skhomesolutions.test/payment-info</a>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {paymentAccounts.length === 0 ? (
+            <div style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#94A3B8', backgroundColor: '#FFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+              No payment accounts yet. Add your bank, bKash, or other receiving accounts so customers can pay you.
+            </div>
+          ) : paymentAccounts.map(account => (
+            <div key={account.id} style={{ padding: '20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                <div>
+                  <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: '#F1F5F9', color: '#64748B' }}>
+                    {paymentAccountTypeLabels[account.type] || account.type}
+                  </span>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', marginTop: '6px' }}>{account.label}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => openEditPaymentAccountModal(account)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                  <button onClick={() => deletePaymentAccount(account.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                </div>
+              </div>
+              <div style={{ fontSize: '13px', color: '#64748B', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {account.account_name && <div><strong style={{ color: '#334155' }}>Name:</strong> {account.account_name}</div>}
+                {account.account_number && <div><strong style={{ color: '#334155' }}>No:</strong> {account.account_number}</div>}
+                {account.bank_name && <div><strong style={{ color: '#334155' }}>Bank:</strong> {account.bank_name}</div>}
+              </div>
+              <span style={{ display: 'inline-block', marginTop: '12px', fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: account.status === 'Active' ? '#F0FDF4' : '#F1F5F9', color: account.status === 'Active' ? '#22C55E' : '#64748B' }}>
+                {account.status}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {isPaymentAccountModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '560px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>{editingPaymentAccount ? 'Edit Payment Account' : 'Add Payment Account'}</h3>
+                <button onClick={() => setIsPaymentAccountModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handlePaymentAccountSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Label *</label>
+                      <input type="text" required placeholder="e.g. Barclays Business Account" value={paymentAccountForm.data.label} onChange={(e) => paymentAccountForm.setData('label', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Type</label>
+                      <select value={paymentAccountForm.data.type} onChange={(e) => paymentAccountForm.setData('type', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="bank">Bank Transfer</option>
+                        <option value="bkash">bKash</option>
+                        <option value="nagad">Nagad</option>
+                        <option value="paypal">PayPal</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Account Name</label>
+                      <input type="text" value={paymentAccountForm.data.account_name} onChange={(e) => paymentAccountForm.setData('account_name', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Account Number</label>
+                      <input type="text" value={paymentAccountForm.data.account_number} onChange={(e) => paymentAccountForm.setData('account_number', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Bank Name</label>
+                      <input type="text" value={paymentAccountForm.data.bank_name} onChange={(e) => paymentAccountForm.setData('bank_name', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Sort Code</label>
+                      <input type="text" value={paymentAccountForm.data.sort_code} onChange={(e) => paymentAccountForm.setData('sort_code', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>IBAN</label>
+                      <input type="text" value={paymentAccountForm.data.iban} onChange={(e) => paymentAccountForm.setData('iban', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>SWIFT / BIC</label>
+                      <input type="text" value={paymentAccountForm.data.swift_code} onChange={(e) => paymentAccountForm.setData('swift_code', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Instructions (shown to customers)</label>
+                    <textarea rows={3} value={paymentAccountForm.data.instructions} onChange={(e) => paymentAccountForm.setData('instructions', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Display Order</label>
+                      <input type="number" value={paymentAccountForm.data.order} onChange={(e) => paymentAccountForm.setData('order', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                      <select value={paymentAccountForm.data.status} onChange={(e) => paymentAccountForm.setData('status', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button type="button" onClick={() => setIsPaymentAccountModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={paymentAccountForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+                    {paymentAccountForm.processing ? 'Saving...' : 'Save Account'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderTrackingSettings = () => {
     const toggleStyle = (checked) => ({
       width: '44px',
@@ -2230,7 +2887,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     Inactive: { bg: '#F1F5F9', color: '#64748B' }
   };
 
-  const renderCustomersCMS = () => {
+  const renderCustomerListPage = () => {
     const getInitials = (name) => {
       if (!name) return 'U';
       return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -2251,10 +2908,12 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     const sortedCustomers = [...filteredCustomers].sort((a, b) => {
       let aVal, bVal;
       switch (customerSortKey) {
+        case 'customer_code': aVal = a.customer_code || ''; bVal = b.customer_code || ''; break;
         case 'email': aVal = a.email || ''; bVal = b.email || ''; break;
         case 'phone': aVal = a.phone || ''; bVal = b.phone || ''; break;
         case 'address': aVal = a.address || ''; bVal = b.address || ''; break;
         case 'status': aVal = a.status || ''; bVal = b.status || ''; break;
+        case 'due': aVal = Number(a.total_due || 0); bVal = Number(b.total_due || 0); break;
         case 'quotes': aVal = (a.quotes || []).length; bVal = (b.quotes || []).length; break;
         case 'lastActivity': {
           const ad = getLastActivity(a); const bd = getLastActivity(b);
@@ -2290,8 +2949,9 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     };
 
     const exportCustomersToCsv = () => {
-      const headers = ['Name', 'Email', 'Phone', 'Address', 'Status', 'Source', 'Quote Count', 'Created At'];
+      const headers = ['Customer ID', 'Name', 'Email', 'Phone', 'Address', 'Status', 'Source', 'Quote Count', 'Total Purchased', 'Total Paid', 'Due Balance', 'Credit Limit', 'Created At'];
       const rows = filteredCustomers.map(c => [
+        c.customer_code || '',
         c.name || '',
         c.email || '',
         c.phone || '',
@@ -2299,6 +2959,10 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
         c.status || '',
         c.source || '',
         (c.quotes || []).length,
+        Number(c.total_purchased || 0).toFixed(2),
+        Number(c.total_paid || 0).toFixed(2),
+        Number(c.total_due || 0).toFixed(2),
+        Number(c.credit_limit || 0).toFixed(2),
         c.created_at ? new Date(c.created_at).toLocaleDateString() : ''
       ]);
       const csvContent = [headers, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
@@ -2316,11 +2980,13 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     };
 
     const columns = [
+      { key: 'customer_code', label: 'ID' },
       { key: 'name', label: 'Name' },
       { key: 'email', label: 'Email' },
       { key: 'phone', label: 'Phone' },
       { key: 'address', label: 'Address' },
       { key: 'status', label: 'Status' },
+      { key: 'due', label: 'Due Balance' },
     ];
 
     const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
@@ -2334,8 +3000,13 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
 
+    const resetCustomerFilters = () => {
+      setCustomerSearch('');
+      setCustomerStatusFilter('All');
+    };
+
     const statCard = (label, value, color) => (
-      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', borderTop: '3px solid var(--color-secondary)' }}>
         <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
         <div style={{ fontSize: '26px', fontWeight: '800', color: color || '#0F172A' }}>{value}</div>
       </div>
@@ -2343,20 +3014,21 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
     return (
       <div className="admin-panel-section" style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
-          <div>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Customer Management</h2>
-            <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Track leads, contacts and their quote history in one place.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={exportCustomersToCsv} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: '#FFFFFF', color: 'var(--color-primary)', border: '1px solid #E2E8F0', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s' }}>
-              <Download size={18} /> Export to Excel
-            </button>
-            <button onClick={openAddCustomerModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
-              <UserPlus size={18} /> Add Customer
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          eyebrow="CUSTOMERS"
+          title="Customer List"
+          subtitle="View, search, and manage every customer in one place."
+          action={
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={exportCustomersToCsv} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: '#FFFFFF', color: 'var(--color-primary)', border: '1px solid #E2E8F0', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s' }}>
+                <Download size={18} /> Export to Excel
+              </button>
+              <button onClick={() => setActiveTab('customers_add')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)', color: '#FFF', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: '0 4px 12px rgba(236,72,153,0.3)' }}>
+                <UserPlus size={18} /> Add Customer
+              </button>
+            </div>
+          }
+        />
 
         {/* Stats row */}
         <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexShrink: 0 }}>
@@ -2366,31 +3038,36 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           {statCard('New This Month', newThisMonth, 'var(--color-secondary)')}
         </div>
 
-        {/* Split Pane Container */}
-        <div style={{ display: 'flex', flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', minHeight: 0 }}>
+        {/* Search / Filter panel */}
+        <div style={{ padding: '14px 16px', border: '1px solid #E2E8F0', borderRadius: '12px', backgroundColor: '#FFFFFF', marginBottom: '16px', flexShrink: 0, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="Search by name, email or phone..."
+            value={customerSearch}
+            onChange={(e) => setCustomerSearch(e.target.value)}
+            style={{ flex: '1 1 260px', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
+          />
+          <select
+            value={customerStatusFilter}
+            onChange={(e) => setCustomerStatusFilter(e.target.value)}
+            style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF', color: '#334155' }}
+          >
+            <option value="All">All Statuses</option>
+            <option value="Lead">Lead</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+          <button
+            type="button"
+            onClick={resetCustomerFilters}
+            style={{ padding: '8px 14px', backgroundColor: '#FFFFFF', color: '#475569', border: '1px solid #E2E8F0', borderRadius: '8px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+          >
+            Reset
+          </button>
+        </div>
 
-          {/* Left Panel: Spreadsheet-style list view */}
-          <div style={{ width: '640px', maxWidth: '58%', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
-              <input
-                type="text"
-                placeholder="Search by name, email or phone..."
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
-              />
-              <select
-                value={customerStatusFilter}
-                onChange={(e) => setCustomerStatusFilter(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF', color: '#334155' }}
-              >
-                <option value="All">All Statuses</option>
-                <option value="Lead">Lead</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-
+        {/* Full-width table */}
+        <div style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', maxHeight: '100%' }}>
               {sortedCustomers.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
@@ -2432,9 +3109,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                   </thead>
                   <tbody>
                     {sortedCustomers.map((customer, idx) => {
-                      const isActive = customer.id === selectedCustomerId;
                       const statusStyle = customerStatusColors[customer.status] || customerStatusColors.Lead;
-                      const baseBg = isActive ? 'var(--color-primary-light)' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC');
+                      const baseBg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
                       return (
                         <tr
                           key={customer.id}
@@ -2442,12 +3118,15 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                           style={{
                             cursor: 'pointer',
                             backgroundColor: baseBg,
-                            borderLeft: isActive ? '4px solid var(--color-secondary)' : '4px solid transparent',
+                            borderLeft: '4px solid transparent',
                             transition: 'background-color 0.15s ease'
                           }}
-                          onMouseOver={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = '#EEF2F7'; }}
-                          onMouseOut={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = baseBg; }}
+                          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#EEF2F7'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = baseBg; }}
                         >
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', whiteSpace: 'nowrap', fontSize: '11px', fontWeight: '700' }}>
+                            {customer.customer_code || '—'}
+                          </td>
                           <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', fontWeight: '700', color: '#0F172A', whiteSpace: 'nowrap' }}>
                             {customer.name || 'Unnamed'}
                           </td>
@@ -2465,12 +3144,36 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                               {customer.status}
                             </span>
                           </td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: Number(customer.total_due || 0) > 0 ? '#EF4444' : '#475569', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                            £{Number(customer.total_due || 0).toFixed(2)}
+                          </td>
                           <td style={{
                             position: 'sticky', right: 0, zIndex: 1,
                             padding: '8px 12px', borderBottom: '1px solid #E2E8F0', borderLeft: '1px solid #E2E8F0',
                             backgroundColor: baseBg, whiteSpace: 'nowrap', textAlign: 'right'
                           }}>
                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedCustomerId(customer.id); }}
+                                style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}
+                                title="View"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedCustomerId(customer.id); setTimeout(() => window.print(), 250); }}
+                                style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}
+                                title="Print"
+                              >
+                                <Printer size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setInvoiceSearch(customer.name || ''); setActiveTab('invoices'); }}
+                                style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#0EA5E9', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}
+                                title="View Invoices"
+                              >
+                                <FileText size={14} />
+                              </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); openEditCustomerModal(customer); }}
                                 style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}
@@ -2494,141 +3197,502 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                 </table>
               )}
             </div>
+        </div>
+
+        {/* Customer View/Print Modal */}
+        {selectedCustomer && (
+          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div className="print-area" style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '760px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+              {/* Detail Header */}
+              <div className="no-print" style={{ padding: '24px 32px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '50%',
+                    backgroundColor: 'var(--color-secondary-light)', color: 'var(--color-secondary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '18px'
+                  }}>
+                    {getInitials(selectedCustomer.name)}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: '0 0 4px 0' }}>
+                      {selectedCustomer.name}
+                      {selectedCustomer.customer_code && (
+                        <span style={{ marginLeft: '10px', fontSize: '11px', fontWeight: '800', color: 'var(--color-primary)', backgroundColor: '#EFF6FF', padding: '3px 9px', borderRadius: '8px', verticalAlign: 'middle' }}>
+                          {selectedCustomer.customer_code}
+                        </span>
+                      )}
+                    </h3>
+                    <div style={{ fontSize: '13px', color: '#64748B' }}>
+                      Customer since {new Date(selectedCustomer.created_at).toLocaleDateString()} · Source: {selectedCustomer.source || 'Manual'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <select
+                    value={selectedCustomer.status}
+                    onChange={(e) => updateCustomerStatus(selectedCustomer.id, e.target.value)}
+                    style={{
+                      fontSize: '12px', padding: '8px 12px', borderRadius: '10px', fontWeight: '700',
+                      backgroundColor: (customerStatusColors[selectedCustomer.status] || customerStatusColors.Lead).bg,
+                      color: (customerStatusColors[selectedCustomer.status] || customerStatusColors.Lead).color,
+                      border: 'none', cursor: 'pointer', outline: 'none'
+                    }}
+                  >
+                    <option value="Lead">Lead</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                  <button onClick={() => window.print()} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Print"><Printer size={16} /></button>
+                  <button onClick={() => openEditCustomerModal(selectedCustomer)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
+                  <button onClick={() => deleteCustomer(selectedCustomer.id)} style={{ padding: '8px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Delete"><Trash2 size={16} /></button>
+                  <button onClick={() => setSelectedCustomerId(null)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Close"><X size={16} /></button>
+                </div>
+              </div>
+
+              {/* Detail Body */}
+              <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+                <h2 style={{ display: 'none' }} className="print-only-heading">{selectedCustomer.name}</h2>
+                {/* Contact Info Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><Mail size={12} /> Email</span>
+                    {selectedCustomer.email ? (
+                      <a href={"mailto:" + selectedCustomer.email} style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}>{selectedCustomer.email}</a>
+                    ) : <span style={{ fontSize: '14px', color: '#94A3B8' }}>N/A</span>}
+                  </div>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><Phone size={12} /> Phone</span>
+                    {selectedCustomer.phone ? (
+                      <a href={"tel:" + selectedCustomer.phone} style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', textDecoration: 'none' }}>{selectedCustomer.phone}</a>
+                    ) : <span style={{ fontSize: '14px', color: '#94A3B8' }}>N/A</span>}
+                  </div>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><MapPin size={12} /> Address</span>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{selectedCustomer.address || 'N/A'}</span>
+                  </div>
+                </div>
+
+                {/* Purchase & Credit Summary */}
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                  Purchase &amp; Credit Summary
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '14px', marginBottom: '28px' }}>
+                  <div style={{ padding: '14px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>Total Purchased</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>£{Number(selectedCustomer.total_purchased || 0).toFixed(2)}</div>
+                  </div>
+                  <div style={{ padding: '14px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F0FDF4' }}>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>Total Paid</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#22C55E' }}>£{Number(selectedCustomer.total_paid || 0).toFixed(2)}</div>
+                  </div>
+                  <div style={{ padding: '14px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FEF2F2' }}>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>Due Balance</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#EF4444' }}>£{Number(selectedCustomer.total_due || 0).toFixed(2)}</div>
+                  </div>
+                  <div style={{ padding: '14px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFFBEB' }}>
+                    <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>Credit Limit</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#D97706' }}>£{Number(selectedCustomer.credit_limit || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+
+                {/* Customer-wise Transaction History */}
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                  Transaction History ({(selectedCustomer.invoices || []).length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                  {(selectedCustomer.invoices || []).length === 0 ? (
+                    <div style={{ fontSize: '14px', color: '#94A3B8' }}>No invoices yet.</div>
+                  ) : (
+                    selectedCustomer.invoices.map(inv => (
+                      <div key={inv.id} style={{ padding: '14px 16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{inv.invoice_number}</div>
+                          <div style={{ fontSize: '12px', color: '#64748B' }}>{inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString() : ''}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>£{Number(inv.total || 0).toFixed(2)}</div>
+                          <span style={{
+                            fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700',
+                            backgroundColor: inv.status === 'Paid' ? '#F0FDF4' : '#FEF2F2',
+                            color: inv.status === 'Paid' ? '#22C55E' : '#EF4444'
+                          }}>
+                            {inv.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Quote / Order History */}
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                  Quote / Order History ({(selectedCustomer.quotes || []).length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                  {(selectedCustomer.quotes || []).length === 0 ? (
+                    <div style={{ fontSize: '14px', color: '#94A3B8' }}>No quotes submitted yet.</div>
+                  ) : (
+                    selectedCustomer.quotes.map(q => (
+                      <div key={q.id} style={{ padding: '14px 16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{q.service || 'General Enquiry'}</span>
+                          <span style={{
+                            fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700',
+                            backgroundColor: q.status === 'Pending' ? '#FEF2F2' : '#F0FDF4',
+                            color: q.status === 'Pending' ? '#EF4444' : '#22C55E'
+                          }}>
+                            {q.status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '6px' }}>{new Date(q.created_at).toLocaleString()}</div>
+                        {q.message && (
+                          <div style={{ fontSize: '13px', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                            {q.message}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Notes */}
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <StickyNote size={14} /> Notes
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                  {(selectedCustomer.notes || []).length === 0 ? (
+                    <div style={{ fontSize: '14px', color: '#94A3B8' }}>No notes yet.</div>
+                  ) : (
+                    [...selectedCustomer.notes].reverse().map((note, idx) => (
+                      <div key={idx} style={{ padding: '12px 14px', backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
+                        <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', marginBottom: '4px' }}>{new Date(note.created_at).toLocaleString()}</div>
+                        <div style={{ fontSize: '14px', color: '#334155', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{note.text}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="Add a note about this customer..."
+                    rows={3}
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  <button
+                    onClick={() => submitCustomerNote(selectedCustomer.id)}
+                    style={{ alignSelf: 'flex-end', padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Add Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <style>{`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            .print-area, .print-area * {
+              visibility: visible;
+            }
+            .print-area {
+              position: fixed !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: none !important;
+              box-shadow: none !important;
+              border-radius: 0 !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+          }
+        `}</style>
+      </div>
+    );
+  };
+
+  const renderCustomerAddPage = () => {
+    const handleAddSubmit = (e) => {
+      e.preventDefault();
+      customerForm.post('/dashboard/customers', {
+        preserveScroll: true,
+        onSuccess: () => {
+          customerForm.reset();
+          setActiveTab('customers_list');
+        }
+      });
+    };
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader
+          eyebrow="CUSTOMERS"
+          title="Add New Customer"
+          subtitle="Create a new customer record — they'll appear in your Customer List immediately."
+        />
+        <div style={{ maxWidth: '880px', backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', borderTop: '4px solid var(--color-secondary)', padding: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #F1F5F9' }}>
+            <span style={{ width: '4px', height: '18px', backgroundColor: 'var(--color-secondary)', borderRadius: '2px', display: 'inline-block', marginRight: '8px' }} />
+            <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>Customer Information</span>
+          </div>
+          <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter full name"
+                  value={customerForm.data.name}
+                  onChange={(e) => customerForm.setData('name', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                />
+                {customerForm.errors.name && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{customerForm.errors.name}</div>}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Email</label>
+                <input
+                  type="email"
+                  placeholder="Enter email address"
+                  value={customerForm.data.email}
+                  onChange={(e) => customerForm.setData('email', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                />
+                {customerForm.errors.email && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{customerForm.errors.email}</div>}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Phone</label>
+                <input
+                  type="text"
+                  placeholder="Enter phone number"
+                  value={customerForm.data.phone}
+                  onChange={(e) => customerForm.setData('phone', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                />
+                {customerForm.errors.phone && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{customerForm.errors.phone}</div>}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                <select
+                  value={customerForm.data.status}
+                  onChange={(e) => customerForm.setData('status', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}
+                >
+                  <option value="Lead">Lead</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Credit Limit (£)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={customerForm.data.credit_limit}
+                  onChange={(e) => customerForm.setData('credit_limit', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                />
+                {customerForm.errors.credit_limit && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{customerForm.errors.credit_limit}</div>}
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Address</label>
+                <textarea
+                  rows={3}
+                  placeholder="Enter address"
+                  value={customerForm.data.address}
+                  onChange={(e) => customerForm.setData('address', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => { customerForm.reset(); setActiveTab('customers_list'); }}
+                style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={customerForm.processing}
+                style={{ padding: '10px 24px', background: 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+              >
+                {customerForm.processing ? 'Saving...' : 'Save Customer'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCustomerImportPage = () => {
+    const { flash } = usePage().props;
+    const importResult = flash?.import_result;
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader eyebrow="CUSTOMERS" title="Import Customers" />
+
+        <div style={{ maxWidth: '720px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid var(--color-secondary)', padding: '24px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', margin: '0 0 10px 0' }}>Expected CSV Format</h3>
+            <p style={{ fontSize: '13px', color: '#64748B', lineHeight: '1.6', margin: '0 0 14px 0' }}>
+              The first row must be a header row. Required column: <strong>name</strong>. Optional columns: <strong>email</strong>, <strong>phone</strong>, <strong>address</strong>, <strong>status</strong> (Lead, Active or Inactive — defaults to Lead). Column order does not matter. Rows matching an existing customer's email or phone will be skipped as duplicates.
+            </p>
+            <button
+              onClick={downloadSampleCustomerCsv}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 16px', backgroundColor: '#FFFFFF', color: 'var(--color-primary)', border: '1px solid #E2E8F0', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+            >
+              <Download size={16} /> Download Sample CSV
+            </button>
           </div>
 
-          {/* Right Panel: Detail view */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#FFFFFF' }}>
-            {selectedCustomer ? (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* Detail Header */}
-                <div style={{ padding: '24px 32px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{
-                      width: '48px', height: '48px', borderRadius: '50%',
-                      backgroundColor: 'var(--color-secondary-light)', color: 'var(--color-secondary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '18px'
-                    }}>
-                      {getInitials(selectedCustomer.name)}
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: '0 0 4px 0' }}>{selectedCustomer.name}</h3>
-                      <div style={{ fontSize: '13px', color: '#64748B' }}>
-                        Customer since {new Date(selectedCustomer.created_at).toLocaleDateString()} · Source: {selectedCustomer.source || 'Manual'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <select
-                      value={selectedCustomer.status}
-                      onChange={(e) => updateCustomerStatus(selectedCustomer.id, e.target.value)}
-                      style={{
-                        fontSize: '12px', padding: '8px 12px', borderRadius: '10px', fontWeight: '700',
-                        backgroundColor: (customerStatusColors[selectedCustomer.status] || customerStatusColors.Lead).bg,
-                        color: (customerStatusColors[selectedCustomer.status] || customerStatusColors.Lead).color,
-                        border: 'none', cursor: 'pointer', outline: 'none'
-                      }}
-                    >
-                      <option value="Lead">Lead</option>
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                    <button onClick={() => openEditCustomerModal(selectedCustomer)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
-                    <button onClick={() => deleteCustomer(selectedCustomer.id)} style={{ padding: '8px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Delete"><Trash2 size={16} /></button>
-                  </div>
-                </div>
-
-                {/* Detail Body */}
-                <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
-                  {/* Contact Info Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
-                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><Mail size={12} /> Email</span>
-                      {selectedCustomer.email ? (
-                        <a href={"mailto:" + selectedCustomer.email} style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', textDecoration: 'none' }}>{selectedCustomer.email}</a>
-                      ) : <span style={{ fontSize: '14px', color: '#94A3B8' }}>N/A</span>}
-                    </div>
-                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
-                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><Phone size={12} /> Phone</span>
-                      {selectedCustomer.phone ? (
-                        <a href={"tel:" + selectedCustomer.phone} style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', textDecoration: 'none' }}>{selectedCustomer.phone}</a>
-                      ) : <span style={{ fontSize: '14px', color: '#94A3B8' }}>N/A</span>}
-                    </div>
-                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
-                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><MapPin size={12} /> Address</span>
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{selectedCustomer.address || 'N/A'}</span>
-                    </div>
-                  </div>
-
-                  {/* Quote / Order History */}
-                  <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
-                    Quote / Order History ({(selectedCustomer.quotes || []).length})
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
-                    {(selectedCustomer.quotes || []).length === 0 ? (
-                      <div style={{ fontSize: '14px', color: '#94A3B8' }}>No quotes submitted yet.</div>
-                    ) : (
-                      selectedCustomer.quotes.map(q => (
-                        <div key={q.id} style={{ padding: '14px 16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{q.service || 'General Enquiry'}</span>
-                            <span style={{
-                              fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700',
-                              backgroundColor: q.status === 'Pending' ? '#FEF2F2' : '#F0FDF4',
-                              color: q.status === 'Pending' ? '#EF4444' : '#22C55E'
-                            }}>
-                              {q.status}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '6px' }}>{new Date(q.created_at).toLocaleString()}</div>
-                          {q.message && (
-                            <div style={{ fontSize: '13px', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                              {q.message}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <StickyNote size={14} /> Notes
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-                    {(selectedCustomer.notes || []).length === 0 ? (
-                      <div style={{ fontSize: '14px', color: '#94A3B8' }}>No notes yet.</div>
-                    ) : (
-                      [...selectedCustomer.notes].reverse().map((note, idx) => (
-                        <div key={idx} style={{ padding: '12px 14px', backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
-                          <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', marginBottom: '4px' }}>{new Date(note.created_at).toLocaleString()}</div>
-                          <div style={{ fontSize: '14px', color: '#334155', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{note.text}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <textarea
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="Add a note about this customer..."
-                      rows={3}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
-                    />
-                    <button
-                      onClick={() => submitCustomerNote(selectedCustomer.id)}
-                      style={{ alignSelf: 'flex-end', padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
-                    >
-                      Add Note
-                    </button>
-                  </div>
-                </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid var(--color-secondary)', padding: '24px' }}>
+            <form onSubmit={handleCustomerImportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>CSV File</label>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setCustomerImportFile(file);
+                    customerImportForm.setData('file', file);
+                  }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px' }}
+                />
+                {customerImportForm.errors.file && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{customerImportForm.errors.file}</div>}
               </div>
-            ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
-                Select a customer to view details.
+              <div>
+                <button
+                  type="submit"
+                  disabled={!customerImportFile || customerImportForm.processing}
+                  style={{ padding: '10px 24px', background: 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: (!customerImportFile || customerImportForm.processing) ? 'not-allowed' : 'pointer', opacity: (!customerImportFile || customerImportForm.processing) ? 0.6 : 1 }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Upload size={16} /> {customerImportForm.processing ? 'Importing...' : 'Upload & Import'}</span>
+                </button>
               </div>
-            )}
+            </form>
+          </div>
+
+          {importResult && (
+            <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '16px', padding: '20px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#166534', margin: '0 0 8px 0' }}>Import Complete</h3>
+              <p style={{ fontSize: '14px', color: '#166534', margin: 0 }}>
+                {importResult.imported} customer(s) imported, {importResult.skipped} skipped as duplicates, {(importResult.errors || []).length} row(s) had errors.
+              </p>
+              {(importResult.errors || []).length > 0 && (
+                <ul style={{ marginTop: '10px', paddingLeft: '20px', color: '#B45309', fontSize: '13px' }}>
+                  {importResult.errors.map((err, idx) => <li key={idx}>{err}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCustomerLogsPage = () => {
+    const filteredLogs = customerLogs.filter(log => {
+      if (!customerLogSearch) return true;
+      const name = log.customer?.name || '';
+      return name.toLowerCase().includes(customerLogSearch.toLowerCase());
+    });
+
+    const actionBadge = (action) => {
+      const map = {
+        created: { bg: '#F0FDF4', color: '#16A34A', label: 'Created' },
+        updated: { bg: '#EFF6FF', color: '#2563EB', label: 'Updated' },
+        status_changed: { bg: '#FFFBEB', color: '#D97706', label: 'Status Changed' },
+        note_added: { bg: '#F1F5F9', color: '#475569', label: 'Note Added' },
+        imported: { bg: '#F5F3FF', color: '#7C3AED', label: 'Imported' },
+      };
+      return map[action] || { bg: '#F1F5F9', color: '#475569', label: action };
+    };
+
+    const timeAgo = (dateStr) => {
+      if (!dateStr) return '';
+      const diffMs = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diffMs / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      if (days < 30) return `${days}d ago`;
+      return new Date(dateStr).toLocaleDateString();
+    };
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader eyebrow="CUSTOMERS" title="Customer Activity Logs" />
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid var(--color-secondary)', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
+            <input
+              type="text"
+              placeholder="Search by customer name..."
+              value={customerLogSearch}
+              onChange={(e) => setCustomerLogSearch(e.target.value)}
+              style={{ width: '100%', maxWidth: '360px', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
+            />
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B' }}>Time</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B' }}>Customer</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B' }}>Action</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B' }}>Description</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B' }}>By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>No activity logged yet.</td>
+                  </tr>
+                ) : filteredLogs.map(log => {
+                  const badge = actionBadge(log.action);
+                  return (
+                    <tr key={log.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                      <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B', whiteSpace: 'nowrap' }}>{timeAgo(log.created_at)}</td>
+                      <td style={{ padding: '14px 20px', fontSize: '13px' }}>
+                        {log.customer ? (
+                          <button
+                            onClick={() => { setSelectedCustomerId(log.customer.id); setActiveTab('customers_list'); }}
+                            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-primary)', fontWeight: '700', cursor: 'pointer', fontSize: '13px', textAlign: 'left' }}
+                          >
+                            {log.customer.name}
+                          </button>
+                        ) : <span style={{ color: '#94A3B8' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '10px', fontWeight: '700', backgroundColor: badge.bg, color: badge.color, whiteSpace: 'nowrap' }}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', fontSize: '13px', color: '#334155' }}>{log.description}</td>
+                      <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>{log.user?.name || 'System'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -3355,9 +4419,1515 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     );
   };
 
+  const workProjectStatusColors = {
+    Active: { bg: '#EFF6FF', color: '#3B82F6' },
+    Completed: { bg: '#F0FDF4', color: '#22C55E' },
+    'On Hold': { bg: '#FFFBEB', color: '#D97706' },
+  };
+
+  const renderWorkProjectsCMS = () => {
+    const selectedWorkProject = workProjects.find(p => p.id === selectedWorkProjectId) || null;
+
+    const totalProjects = workProjects.length;
+    const activeProjects = workProjects.filter(p => p.status === 'Active').length;
+    const completedProjects = workProjects.filter(p => p.status === 'Completed').length;
+    const totalNetProfit = workProjects.reduce((s, p) => s + parseFloat(p.net_profit || 0), 0);
+
+    const statCard = (label, value, color) => (
+      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
+        <div style={{ fontSize: '26px', fontWeight: '800', color: color || '#0F172A' }}>{value}</div>
+      </div>
+    );
+
+    return (
+      <div className="admin-panel-section" style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Projects</h2>
+            <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Track jobs from accepted quotes through completion, with income &amp; expense rollups.</p>
+          </div>
+          <button
+            onClick={openAddWorkProjectModal}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}
+          >
+            <Plus size={18} /> New Project
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexShrink: 0 }}>
+          {statCard('Total Projects', totalProjects)}
+          {statCard('Active', activeProjects, '#3B82F6')}
+          {statCard('Completed', completedProjects, '#22C55E')}
+          {statCard('Total Net Profit', `£${totalNetProfit.toFixed(2)}`, totalNetProfit >= 0 ? '#22C55E' : '#EF4444')}
+        </div>
+
+        <div style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {workProjects.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                No projects yet. Projects are created automatically when an invoice is generated from an accepted quote, or you can add one manually.
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                <thead>
+                  <tr>
+                    {['Title', 'Customer', 'Status', 'Net Profit', ''].map(h => (
+                      <th key={h} style={{ position: 'sticky', top: 0, zIndex: 1, padding: '10px 12px', fontSize: '11px', fontWeight: '700', color: '#64748B', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {workProjects.map((wp, idx) => {
+                    const statusStyle = workProjectStatusColors[wp.status] || workProjectStatusColors.Active;
+                    const baseBg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+                    const netProfit = parseFloat(wp.net_profit || 0);
+                    return (
+                      <tr
+                        key={wp.id}
+                        onClick={() => setSelectedWorkProjectId(wp.id)}
+                        style={{ cursor: 'pointer', backgroundColor: baseBg, borderLeft: '4px solid transparent' }}
+                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#EEF2F7'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = baseBg; }}
+                      >
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', fontWeight: '700', color: '#0F172A', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {wp.title}
+                        </td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', whiteSpace: 'nowrap' }}>
+                          {wp.customer?.name || '—'}
+                        </td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0' }}>
+                          <select
+                            value={wp.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => updateWorkProjectStatus(wp.id, e.target.value)}
+                            style={{ fontSize: '10px', padding: '3px 6px', borderRadius: '8px', fontWeight: '700', backgroundColor: statusStyle.bg, color: statusStyle.color, border: 'none', cursor: 'pointer', outline: 'none' }}
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Completed">Completed</option>
+                            <option value="On Hold">On Hold</option>
+                          </select>
+                        </td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', fontWeight: '800', color: netProfit >= 0 ? '#22C55E' : '#EF4444', whiteSpace: 'nowrap' }}>
+                          £{netProfit.toFixed(2)}
+                        </td>
+                        <td style={{ padding: '8px 12px', borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setSelectedWorkProjectId(wp.id)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="View"><Eye size={14} /></button>
+                            <button onClick={() => { setSelectedWorkProjectId(wp.id); setTimeout(() => window.print(), 250); }} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Print"><Printer size={14} /></button>
+                            <button onClick={() => openEditWorkProjectModal(wp)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Edit"><Edit2 size={14} /></button>
+                            <button onClick={() => deleteWorkProject(wp.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Delete"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Project View/Print Modal */}
+        {selectedWorkProject && (
+          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div className="print-area" style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '760px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+              <div style={{ padding: '24px 32px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: '0 0 4px 0' }}>{selectedWorkProject.title}</h3>
+                    <div style={{ fontSize: '13px', color: '#64748B' }}>
+                      {selectedWorkProject.customer?.name || 'No customer'} · Started {selectedWorkProject.started_at ? new Date(selectedWorkProject.started_at).toLocaleDateString('en-GB') : '—'}
+                    </div>
+                  </div>
+                  <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '10px', fontWeight: '700', backgroundColor: (workProjectStatusColors[selectedWorkProject.status] || workProjectStatusColors.Active).bg, color: (workProjectStatusColors[selectedWorkProject.status] || workProjectStatusColors.Active).color }}>
+                      {selectedWorkProject.status}
+                    </span>
+                    <button onClick={() => window.print()} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Print"><Printer size={16} /></button>
+                    <button onClick={() => openEditWorkProjectModal(selectedWorkProject)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
+                    <button onClick={() => setSelectedWorkProjectId(null)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Close"><X size={16} /></button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700' }}>Income</span>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#22C55E' }}>£{parseFloat(selectedWorkProject.total_income || 0).toFixed(2)}</div>
+                  </div>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700' }}>Expense</span>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#EF4444' }}>£{parseFloat(selectedWorkProject.total_expense || 0).toFixed(2)}</div>
+                  </div>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700' }}>Net Profit</span>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: parseFloat(selectedWorkProject.net_profit || 0) >= 0 ? '#22C55E' : '#EF4444' }}>£{parseFloat(selectedWorkProject.net_profit || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+
+                {selectedWorkProject.notes && (
+                  <div style={{ marginBottom: '28px', fontSize: '14px', color: '#334155', whiteSpace: 'pre-wrap', backgroundColor: '#FAFAFA', border: '1px solid #F1F5F9', borderRadius: '10px', padding: '12px 14px' }}>
+                    {selectedWorkProject.notes}
+                  </div>
+                )}
+
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                  Invoices ({(selectedWorkProject.invoices || []).length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                  {(selectedWorkProject.invoices || []).length === 0 ? (
+                    <div style={{ fontSize: '14px', color: '#94A3B8' }}>No invoices linked yet.</div>
+                  ) : (
+                    selectedWorkProject.invoices.map(inv => (
+                      <div key={inv.id} style={{ padding: '12px 14px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF', display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{inv.invoice_number}</span>
+                        <span style={{ fontSize: '12px', color: '#64748B' }}>{inv.status}</span>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>£{parseFloat(inv.total || 0).toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                  Transactions ({(selectedWorkProject.transactions || []).length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {(selectedWorkProject.transactions || []).length === 0 ? (
+                    <div style={{ fontSize: '14px', color: '#94A3B8' }}>No transactions linked yet.</div>
+                  ) : (
+                    selectedWorkProject.transactions.map(t => (
+                      <div key={t.id} style={{ padding: '12px 14px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#FFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: '#64748B' }}>{t.date ? new Date(t.date).toLocaleDateString('en-GB') : ''}</span>
+                        <span style={{ fontSize: '12px', color: '#334155' }}>{t.category}</span>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: t.type === 'income' ? '#22C55E' : '#EF4444' }}>
+                          {t.type === 'income' ? '+' : '-'}£{parseFloat(t.amount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <style>{`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            .print-area, .print-area * {
+              visibility: visible;
+            }
+            .print-area {
+              position: fixed !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: none !important;
+              box-shadow: none !important;
+              border-radius: 0 !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+          }
+        `}</style>
+
+        {/* Work Project Modal */}
+        {isWorkProjectModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>{editingWorkProject ? 'Edit Project' : 'New Project'}</h3>
+                <button onClick={() => setIsWorkProjectModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleWorkProjectSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Title *</label>
+                    <input type="text" required value={workProjectForm.data.title} onChange={(e) => workProjectForm.setData('title', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    {workProjectForm.errors.title && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{workProjectForm.errors.title}</div>}
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Customer *</label>
+                    <select required value={workProjectForm.data.customer_id} onChange={(e) => workProjectForm.setData('customer_id', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                      <option value="">Select a customer...</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    {workProjectForm.errors.customer_id && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{workProjectForm.errors.customer_id}</div>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                      <select value={workProjectForm.data.status} onChange={(e) => workProjectForm.setData('status', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="Active">Active</option>
+                        <option value="Completed">Completed</option>
+                        <option value="On Hold">On Hold</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Started</label>
+                      <input type="date" value={workProjectForm.data.started_at} onChange={(e) => workProjectForm.setData('started_at', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Notes</label>
+                    <textarea rows={3} value={workProjectForm.data.notes} onChange={(e) => workProjectForm.setData('notes', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setIsWorkProjectModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={workProjectForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                    {workProjectForm.processing ? 'Saving...' : 'Save Project'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFinanceCMS = () => {
+    const now = new Date();
+    const isThisMonth = (d) => {
+      const dd = new Date(d);
+      return dd.getMonth() === now.getMonth() && dd.getFullYear() === now.getFullYear();
+    };
+    const monthTransactions = transactions.filter(t => isThisMonth(t.date));
+    const monthIncome = monthTransactions.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+    const monthExpense = monthTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+    const allTimeIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+    const allTimeExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+
+    const filteredTransactions = transactions.filter(t => {
+      const matchesSearch = !transactionSearch || [t.category, t.description, t.workProject?.title].filter(Boolean).some(v => v.toLowerCase().includes(transactionSearch.toLowerCase()));
+      const matchesType = transactionTypeFilter === 'All' || t.type === transactionTypeFilter.toLowerCase();
+      const matchesProject = transactionProjectFilter === 'All' || String(t.work_project_id) === String(transactionProjectFilter);
+      const tDate = t.date ? new Date(t.date) : null;
+      const matchesFrom = !transactionDateFrom || (tDate && tDate >= new Date(transactionDateFrom));
+      const matchesTo = !transactionDateTo || (tDate && tDate <= new Date(transactionDateTo));
+      return matchesSearch && matchesType && matchesProject && matchesFrom && matchesTo;
+    });
+
+    const sourceLabel = (t) => {
+      if (t.source_type === 'manual') return 'Manual';
+      if (t.source_type === 'invoice') return 'Invoice Payment';
+      if (t.source_type === 'payroll') return 'Payroll';
+      return t.source_type || '—';
+    };
+
+    const statCard = (label, value, color) => (
+      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
+        <div style={{ fontSize: '26px', fontWeight: '800', color: color || '#0F172A' }}>{value}</div>
+      </div>
+    );
+
+    const categoryOptions = ['Materials', 'Labour', 'Transport', 'Tools', 'Marketing', 'Utilities', 'Invoice Payment', 'Payroll', 'Other'];
+
+    return (
+      <div className="admin-panel-section" style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Income &amp; Expenses</h2>
+            <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Track income and log business expenses, optionally linked to a project.</p>
+          </div>
+          <button onClick={openAddTransactionModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
+            <Plus size={18} /> Add Expense
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexShrink: 0 }}>
+          {statCard("This Month's Income", `£${monthIncome.toFixed(2)}`, '#22C55E')}
+          {statCard("This Month's Expense", `£${monthExpense.toFixed(2)}`, '#EF4444')}
+          {statCard("This Month's Net Profit", `£${(monthIncome - monthExpense).toFixed(2)}`, (monthIncome - monthExpense) >= 0 ? '#22C55E' : '#EF4444')}
+          {statCard('All-Time Net Profit', `£${(allTimeIncome - allTimeExpense).toFixed(2)}`, (allTimeIncome - allTimeExpense) >= 0 ? '#22C55E' : '#EF4444')}
+        </div>
+
+        <div style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <input type="text" placeholder="Search category, description, project..." value={transactionSearch} onChange={(e) => setTransactionSearch(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px 10px 36px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }} />
+            </div>
+            <select value={transactionTypeFilter} onChange={(e) => setTransactionTypeFilter(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF', color: '#334155' }}>
+              <option value="All">All Types</option>
+              <option value="Income">Income</option>
+              <option value="Expense">Expense</option>
+            </select>
+            <select value={transactionProjectFilter} onChange={(e) => setTransactionProjectFilter(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF', color: '#334155' }}>
+              <option value="All">All Projects</option>
+              {workProjects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+            </select>
+            <input type="date" value={transactionDateFrom} onChange={(e) => setTransactionDateFrom(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }} />
+            <input type="date" value={transactionDateTo} onChange={(e) => setTransactionDateTo(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }} />
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {filteredTransactions.length === 0 ? (
+              <div style={{ padding: '60px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                No transactions found.
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    {['Date', 'Type', 'Category', 'Description', 'Project', 'Amount', 'Source', ''].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.map(t => {
+                    const isManual = t.source_type === 'manual';
+                    return (
+                      <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#64748B' }}>{t.date ? new Date(t.date).toLocaleDateString('en-GB') : '-'}</td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '10px', fontWeight: '700', backgroundColor: t.type === 'income' ? '#F0FDF4' : '#FEF2F2', color: t.type === 'income' ? '#22C55E' : '#EF4444' }}>
+                            {t.type === 'income' ? 'Income' : 'Expense'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#334155' }}>{t.category}</td>
+                        <td title={t.description || ''} style={{ padding: '14px 16px', fontSize: '13px', color: '#64748B', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description || '—'}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', color: '#64748B' }}>{t.workProject?.title || '—'}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '800', color: t.type === 'income' ? '#22C55E' : '#EF4444' }}>
+                          {t.type === 'income' ? '+' : '-'}£{parseFloat(t.amount || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', fontWeight: '700', backgroundColor: '#F1F5F9', color: '#64748B' }}>{sourceLabel(t)}</span>
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                          <button
+                            onClick={() => isManual && deleteTransaction(t.id)}
+                            disabled={!isManual}
+                            title={isManual ? 'Delete' : 'Automatically generated transactions cannot be deleted directly.'}
+                            style={{ padding: '6px', color: isManual ? '#EF4444' : '#CBD5E1', backgroundColor: 'transparent', border: 'none', cursor: isManual ? 'pointer' : 'not-allowed' }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Transaction Modal */}
+        {isTransactionModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>Add Transaction</h3>
+                <button onClick={() => setIsTransactionModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleTransactionSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Type</label>
+                      <select value={transactionForm.data.type} onChange={(e) => transactionForm.setData('type', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Amount (£) *</label>
+                      <input type="number" step="0.01" min="0.01" required value={transactionForm.data.amount} onChange={(e) => transactionForm.setData('amount', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {transactionForm.errors.amount && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{transactionForm.errors.amount}</div>}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Category *</label>
+                    <input list="tx-categories" required value={transactionForm.data.category} onChange={(e) => transactionForm.setData('category', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    <datalist id="tx-categories">
+                      {categoryOptions.map(c => <option key={c} value={c} />)}
+                    </datalist>
+                    {transactionForm.errors.category && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{transactionForm.errors.category}</div>}
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Description</label>
+                    <textarea rows={2} value={transactionForm.data.description} onChange={(e) => transactionForm.setData('description', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Project</label>
+                      <select value={transactionForm.data.work_project_id} onChange={(e) => transactionForm.setData('work_project_id', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="">None</option>
+                        {workProjects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Date *</label>
+                      <input type="date" required value={transactionForm.data.date} onChange={(e) => transactionForm.setData('date', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Account (Cash/Bank)</label>
+                      <select value={transactionForm.data.finance_account_id} onChange={(e) => transactionForm.setData('finance_account_id', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="">None</option>
+                        {financeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    </div>
+                    {transactionForm.data.type === 'expense' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Supplier (Payable)</label>
+                        <select value={transactionForm.data.supplier_id} onChange={(e) => transactionForm.setData('supplier_id', e.target.value)}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                          <option value="">None</option>
+                          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setIsTransactionModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={transactionForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                    {transactionForm.processing ? 'Saving...' : 'Save Transaction'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const financeAccountTypeLabels = { cash: 'Cash', bank: 'Bank', mobile: 'Mobile Banking' };
+
+  const renderFinanceAccountsPage = () => {
+    const totalBalance = financeAccounts.reduce((s, a) => s + Number(a.current_balance || 0), 0);
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader
+          eyebrow="ACCOUNT MANAGEMENT"
+          title="Cash & Bank Accounts"
+          subtitle="Manage your cash drawers and bank accounts, and see account-wise balances."
+          action={
+            <button onClick={openAddFinanceAccountModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)', color: '#FFF', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+              <Plus size={18} /> Add Account
+            </button>
+          }
+        />
+
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Total Balance (All Accounts)</div>
+            <div style={{ fontSize: '26px', fontWeight: '800', color: totalBalance >= 0 ? '#22C55E' : '#EF4444' }}>£{totalBalance.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+          {financeAccounts.length === 0 ? (
+            <div style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#94A3B8', backgroundColor: '#FFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>No accounts yet. Add your first cash or bank account.</div>
+          ) : financeAccounts.map(account => (
+            <div key={account.id} style={{ padding: '20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>{account.name}</div>
+                  <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: '#F1F5F9', color: '#64748B' }}>
+                    {financeAccountTypeLabels[account.type] || account.type} {account.status === 'Inactive' ? '· Inactive' : ''}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => openEditFinanceAccountModal(account)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                  <button onClick={() => deleteFinanceAccount(account.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                </div>
+              </div>
+              {account.account_number && <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '10px' }}>A/C: {account.account_number}</div>}
+              <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase' }}>Current Balance</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: Number(account.current_balance || 0) >= 0 ? '#0F172A' : '#EF4444' }}>£{Number(account.current_balance || 0).toFixed(2)}</div>
+            </div>
+          ))}
+        </div>
+
+        {isFinanceAccountModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>{editingFinanceAccount ? 'Edit Account' : 'Add Account'}</h3>
+                <button onClick={() => setIsFinanceAccountModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleFinanceAccountSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Account Name *</label>
+                    <input type="text" required value={financeAccountForm.data.name} onChange={(e) => financeAccountForm.setData('name', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Type</label>
+                      <select value={financeAccountForm.data.type} onChange={(e) => financeAccountForm.setData('type', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="cash">Cash</option>
+                        <option value="bank">Bank</option>
+                        <option value="mobile">Mobile Banking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Opening Balance (£)</label>
+                      <input type="number" step="0.01" value={financeAccountForm.data.opening_balance} onChange={(e) => financeAccountForm.setData('opening_balance', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Account Number</label>
+                    <input type="text" value={financeAccountForm.data.account_number} onChange={(e) => financeAccountForm.setData('account_number', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                    <select value={financeAccountForm.data.status} onChange={(e) => financeAccountForm.setData('status', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button type="button" onClick={() => setIsFinanceAccountModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={financeAccountForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+                    {financeAccountForm.processing ? 'Saving...' : 'Save Account'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSuppliersPage = () => {
+    const filteredSuppliers = suppliers.filter(s => !supplierSearch || [s.name, s.phone, s.email].filter(Boolean).some(v => v.toLowerCase().includes(supplierSearch.toLowerCase())));
+    const totalPayable = suppliers.reduce((s, sup) => s + Number(sup.payable_balance || 0), 0);
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader
+          eyebrow="ACCOUNT MANAGEMENT"
+          title="Suppliers & Payable"
+          subtitle="Track suppliers and how much you owe them."
+          action={
+            <button onClick={openAddSupplierModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)', color: '#FFF', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+              <Plus size={18} /> Add Supplier
+            </button>
+          }
+        />
+
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Total Supplier Payable</div>
+            <div style={{ fontSize: '26px', fontWeight: '800', color: totalPayable > 0 ? '#EF4444' : '#22C55E' }}>£{totalPayable.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <input type="text" placeholder="Search suppliers..." value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)}
+            style={{ width: '100%', maxWidth: '320px', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }} />
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                {['Name', 'Phone', 'Email', 'Opening Balance', 'Paid', 'Payable', 'Status', ''].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSuppliers.length === 0 ? (
+                <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>No suppliers found.</td></tr>
+              ) : filteredSuppliers.map(s => (
+                <tr key={s.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: '700', color: '#0F172A' }}>{s.name}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748B' }}>{s.phone || '—'}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748B' }}>{s.email || '—'}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748B' }}>£{Number(s.opening_balance || 0).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px', color: '#22C55E', fontWeight: '700' }}>£{Number(s.total_paid || 0).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px', color: Number(s.payable_balance || 0) > 0 ? '#EF4444' : '#64748B', fontWeight: '800' }}>£{Number(s.payable_balance || 0).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: s.status === 'Active' ? '#F0FDF4' : '#F1F5F9', color: s.status === 'Active' ? '#22C55E' : '#64748B' }}>{s.status}</span>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                      <button onClick={() => openEditSupplierModal(s)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                      <button onClick={() => deleteSupplier(s.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {isSupplierModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>{editingSupplier ? 'Edit Supplier' : 'Add Supplier'}</h3>
+                <button onClick={() => setIsSupplierModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleSupplierSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Supplier Name *</label>
+                    <input type="text" required value={supplierForm.data.name} onChange={(e) => supplierForm.setData('name', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Phone</label>
+                      <input type="text" value={supplierForm.data.phone} onChange={(e) => supplierForm.setData('phone', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Email</label>
+                      <input type="email" value={supplierForm.data.email} onChange={(e) => supplierForm.setData('email', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Address</label>
+                    <input type="text" value={supplierForm.data.address} onChange={(e) => supplierForm.setData('address', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Opening Balance Owed (£)</label>
+                      <input type="number" step="0.01" value={supplierForm.data.opening_balance} onChange={(e) => supplierForm.setData('opening_balance', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                      <select value={supplierForm.data.status} onChange={(e) => supplierForm.setData('status', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button type="button" onClick={() => setIsSupplierModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={supplierForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+                    {supplierForm.processing ? 'Saving...' : 'Save Supplier'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderReceivablesPage = () => {
+    const withDue = customers.filter(c => Number(c.total_due || 0) > 0).sort((a, b) => Number(b.total_due || 0) - Number(a.total_due || 0));
+    const totalReceivable = customers.reduce((s, c) => s + Number(c.total_due || 0), 0);
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader eyebrow="ACCOUNT MANAGEMENT" title="Customer Receivable" subtitle="Customers who currently owe you money, from unpaid or partially paid invoices." />
+
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Total Receivable</div>
+            <div style={{ fontSize: '26px', fontWeight: '800', color: totalReceivable > 0 ? '#EF4444' : '#22C55E' }}>£{totalReceivable.toFixed(2)}</div>
+          </div>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Customers With Due Balance</div>
+            <div style={{ fontSize: '26px', fontWeight: '800', color: '#0F172A' }}>{withDue.length}</div>
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                {['Customer ID', 'Name', 'Phone', 'Total Purchased', 'Total Paid', 'Due Balance', ''].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {withDue.length === 0 ? (
+                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>No outstanding receivables. All customers are settled.</td></tr>
+              ) : withDue.map(c => (
+                <tr key={c.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '12px 16px', color: '#64748B', fontWeight: '700' }}>{c.customer_code || '—'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: '700', color: '#0F172A' }}>{c.name}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748B' }}>{c.phone || '—'}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748B' }}>£{Number(c.total_purchased || 0).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px', color: '#22C55E' }}>£{Number(c.total_paid || 0).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px', color: '#EF4444', fontWeight: '800' }}>£{Number(c.total_due || 0).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <button onClick={() => { setInvoiceSearch(c.name || ''); setActiveTab('invoices'); }} style={{ padding: '6px 12px', backgroundColor: '#F1F5F9', color: '#0EA5E9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>View Invoices</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFinancialReportsPage = () => {
+    const parseAmt = (t) => Number(t.amount || 0);
+    const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+    const monthKey = (d) => new Date(d).toISOString().slice(0, 7);
+    const yearKey = (d) => String(new Date(d).getFullYear());
+
+    const buildBuckets = (keyFn) => {
+      const map = {};
+      transactions.forEach(t => {
+        if (!t.date) return;
+        const key = keyFn(t.date);
+        if (!map[key]) map[key] = { key, income: 0, expense: 0 };
+        if (t.type === 'income') map[key].income += parseAmt(t);
+        else map[key].expense += parseAmt(t);
+      });
+      return Object.values(map).sort((a, b) => a.key < b.key ? 1 : -1);
+    };
+
+    const dailyBuckets = buildBuckets(dayKey).slice(0, 30);
+    const monthlyBuckets = buildBuckets(monthKey);
+    const yearlyBuckets = buildBuckets(yearKey);
+
+    const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + parseAmt(t), 0);
+    const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseAmt(t), 0);
+    const netProfit = totalIncome - totalExpense;
+
+    // Cash flow: running balance over sorted-ascending dates
+    const sortedAsc = [...transactions].filter(t => t.date).sort((a, b) => new Date(a.date) - new Date(b.date));
+    let running = 0;
+    const cashFlow = sortedAsc.map(t => {
+      running += t.type === 'income' ? parseAmt(t) : -parseAmt(t);
+      return { date: t.date, change: t.type === 'income' ? parseAmt(t) : -parseAmt(t), balance: running };
+    }).slice(-20);
+
+    const categoryBreakdown = (type) => {
+      const map = {};
+      transactions.filter(t => t.type === type).forEach(t => {
+        map[t.category] = (map[t.category] || 0) + parseAmt(t);
+      });
+      return Object.entries(map).sort((a, b) => b[1] - a[1]);
+    };
+
+    const exportReportCsv = () => {
+      const headers = ['Date', 'Type', 'Category', 'Description', 'Project', 'Account', 'Supplier', 'Amount'];
+      const rows = transactions.map(t => [
+        t.date ? new Date(t.date).toLocaleDateString() : '',
+        t.type,
+        t.category || '',
+        t.description || '',
+        t.workProject?.title || '',
+        t.financeAccount?.name || '',
+        t.supplier?.name || '',
+        Number(t.amount || 0).toFixed(2)
+      ]);
+      const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `financial-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    const sectionTitle = (title) => (
+      <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', margin: '28px 0 12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>{title}</h4>
+    );
+
+    const bucketTable = (buckets, label) => (
+      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', overflow: 'hidden', marginBottom: '8px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+              {[label, 'Income', 'Expense', 'Net'].map(h => <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {buckets.length === 0 ? (
+              <tr><td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No data.</td></tr>
+            ) : buckets.map(b => (
+              <tr key={b.key} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0F172A' }}>{b.key}</td>
+                <td style={{ padding: '10px 14px', color: '#22C55E' }}>£{b.income.toFixed(2)}</td>
+                <td style={{ padding: '10px 14px', color: '#EF4444' }}>£{b.expense.toFixed(2)}</td>
+                <td style={{ padding: '10px 14px', fontWeight: '800', color: (b.income - b.expense) >= 0 ? '#22C55E' : '#EF4444' }}>£{(b.income - b.expense).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <PageHeader
+          eyebrow="ACCOUNT MANAGEMENT"
+          title="Financial Reports"
+          subtitle="Profit & loss, cash flow, and date-wise income/expense reports."
+          action={
+            <button onClick={exportReportCsv} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: '#FFFFFF', color: 'var(--color-primary)', border: '1px solid #E2E8F0', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+              <Download size={18} /> Export Report
+            </button>
+          }
+        />
+
+        {/* Profit & Loss Summary */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Total Income</div>
+            <div style={{ fontSize: '22px', fontWeight: '800', color: '#22C55E' }}>£{totalIncome.toFixed(2)}</div>
+          </div>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Total Expense</div>
+            <div style={{ fontSize: '22px', fontWeight: '800', color: '#EF4444' }}>£{totalExpense.toFixed(2)}</div>
+          </div>
+          <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Net Profit / Loss</div>
+            <div style={{ fontSize: '22px', fontWeight: '800', color: netProfit >= 0 ? '#22C55E' : '#EF4444' }}>£{netProfit.toFixed(2)}</div>
+          </div>
+        </div>
+
+        {sectionTitle('Yearly Accounts')}
+        {bucketTable(yearlyBuckets, 'Year')}
+
+        {sectionTitle('Monthly Accounts')}
+        {bucketTable(monthlyBuckets, 'Month')}
+
+        {sectionTitle('Daily Accounts (Last 30 Days)')}
+        {bucketTable(dailyBuckets, 'Date')}
+
+        {sectionTitle('Cash Flow (Last 20 Transactions)')}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', overflow: 'hidden', marginBottom: '8px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                {['Date', 'Change', 'Running Balance'].map(h => <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {cashFlow.length === 0 ? (
+                <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No data.</td></tr>
+              ) : cashFlow.map((c, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '10px 14px', color: '#64748B' }}>{new Date(c.date).toLocaleDateString()}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: '700', color: c.change >= 0 ? '#22C55E' : '#EF4444' }}>{c.change >= 0 ? '+' : ''}£{c.change.toFixed(2)}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: '800', color: '#0F172A' }}>£{c.balance.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {sectionTitle('Account-wise Balances')}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', overflow: 'hidden', marginBottom: '8px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                {['Account', 'Type', 'Balance'].map(h => <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {financeAccounts.length === 0 ? (
+                <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No accounts yet.</td></tr>
+              ) : financeAccounts.map(a => (
+                <tr key={a.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0F172A' }}>{a.name}</td>
+                  <td style={{ padding: '10px 14px', color: '#64748B' }}>{financeAccountTypeLabels[a.type] || a.type}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: '800', color: Number(a.current_balance || 0) >= 0 ? '#0F172A' : '#EF4444' }}>£{Number(a.current_balance || 0).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {sectionTitle('Income by Category')}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', overflow: 'hidden', marginBottom: '8px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <tbody>
+              {categoryBreakdown('income').length === 0 ? (
+                <tr><td style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No income recorded.</td></tr>
+              ) : categoryBreakdown('income').map(([cat, amt]) => (
+                <tr key={cat} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '10px 14px', color: '#334155' }}>{cat}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#22C55E' }}>£{amt.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {sectionTitle('Expense by Category')}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', overflow: 'hidden', marginBottom: '8px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <tbody>
+              {categoryBreakdown('expense').length === 0 ? (
+                <tr><td style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No expenses recorded.</td></tr>
+              ) : categoryBreakdown('expense').map(([cat, amt]) => (
+                <tr key={cat} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '10px 14px', color: '#334155' }}>{cat}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#EF4444' }}>£{amt.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTimeClock = () => {
+    const myEntries = timeEntries.filter(e => e.user_id === auth?.user?.id);
+    const openEntry = myEntries.find(e => !e.clock_out);
+
+    const startOfWeek = (() => {
+      const d = new Date();
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const sow = new Date(d.setDate(diff));
+      sow.setHours(0, 0, 0, 0);
+      return sow;
+    })();
+
+    const now = new Date();
+    const isToday = (d) => {
+      const dd = new Date(d);
+      return dd.toDateString() === now.toDateString();
+    };
+    const isThisWeek = (d) => new Date(d) >= startOfWeek;
+    const isThisMonth = (d) => {
+      const dd = new Date(d);
+      return dd.getMonth() === now.getMonth() && dd.getFullYear() === now.getFullYear();
+    };
+
+    const sumHours = (filterFn) => myEntries
+      .filter(e => e.hours !== null && filterFn(e.clock_in))
+      .reduce((s, e) => s + parseFloat(e.hours || 0), 0);
+
+    const todayHours = sumHours(isToday);
+    const weekHours = sumHours(isThisWeek);
+    const monthHours = sumHours(isThisMonth);
+
+    const statCard = (label, value) => (
+      <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
+        <div style={{ fontSize: '26px', fontWeight: '800', color: '#0F172A' }}>{value.toFixed(2)}h</div>
+      </div>
+    );
+
+    const recent = [...myEntries].sort((a, b) => new Date(b.clock_in) - new Date(a.clock_in)).slice(0, 20);
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>Time Clock</h2>
+          <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Clock in and out of your shifts.</p>
+        </div>
+
+        <div style={{
+          padding: '28px',
+          borderRadius: '16px',
+          border: `1px solid ${openEntry ? '#BBF7D0' : '#E2E8F0'}`,
+          backgroundColor: openEntry ? '#F0FDF4' : '#FFFFFF',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: openEntry ? '#22C55E' : '#64748B', textTransform: 'uppercase', marginBottom: '6px' }}>
+              {openEntry ? 'Currently Clocked In' : 'Clocked Out'}
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A' }}>
+              {openEntry
+                ? `Since ${new Date(openEntry.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${openEntry.workProject ? ` · ${openEntry.workProject.title}` : ''}`
+                : 'You are not currently clocked in.'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {!openEntry && (
+              <select value={clockProjectId} onChange={(e) => setClockProjectId(e.target.value)}
+                style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none', backgroundColor: '#FFF' }}>
+                <option value="">No project</option>
+                {workProjects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            )}
+            <button
+              onClick={openEntry ? clockOut : clockIn}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 28px',
+                backgroundColor: openEntry ? '#EF4444' : 'var(--color-secondary)',
+                color: '#FFF', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '15px',
+                cursor: 'pointer', boxShadow: 'var(--shadow-sm)'
+              }}
+            >
+              <Clock size={18} /> {openEntry ? 'Clock Out' : 'Clock In'}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+          {statCard("Today", todayHours)}
+          {statCard("This Week", weekHours)}
+          {statCard("This Month", monthHours)}
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+                  {['Date', 'Clock In', 'Clock Out', 'Hours', 'Project', 'Notes'].map(h => (
+                    <th key={h} style={{ padding: '14px 20px', fontSize: '12px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map(entry => (
+                  <tr key={entry.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '14px 20px', fontSize: '13px', color: '#334155' }}>{new Date(entry.clock_in).toLocaleDateString('en-GB')}</td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>{new Date(entry.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>
+                      {entry.clock_out
+                        ? new Date(entry.clock_out).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+                        : <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '8px', fontWeight: '700', backgroundColor: '#F0FDF4', color: '#22C55E' }}>In Progress</span>}
+                    </td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{entry.hours !== null ? `${parseFloat(entry.hours).toFixed(2)}h` : '—'}</td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>{entry.workProject?.title || '—'}</td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>{entry.notes || '—'}</td>
+                  </tr>
+                ))}
+                {recent.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                      No time entries yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPayrollCMS = () => {
+    if (auth?.user?.role !== 'admin') {
+      return (
+        <div style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px', backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          Access restricted to administrators.
+        </div>
+      );
+    }
+
+    const statusBadge = (status) => status === 'Paid'
+      ? { bg: '#F0FDF4', color: '#22C55E' }
+      : { bg: '#FFFBEB', color: '#D97706' };
+
+    const sectionCard = (title, action, children) => (
+      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', marginBottom: '24px' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>{title}</h3>
+          {action}
+        </div>
+        {children}
+      </div>
+    );
+
+    const smallBtn = (label, onClick, icon) => (
+      <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+        {icon}{label}
+      </button>
+    );
+
+    return (
+      <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>Payroll</h2>
+          <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Manage staff time tracking, advances, and salary payments.</p>
+        </div>
+
+        {payrollForm.errors.payroll && (
+          <div style={{ padding: '12px 16px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', color: '#EF4444', fontSize: '13px', fontWeight: '600', marginBottom: '20px' }}>
+            {payrollForm.errors.payroll}
+          </div>
+        )}
+
+        {/* Staff Overview */}
+        {sectionCard('Staff Overview', null, (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  {['Name', 'Role', 'Hourly Rate'].map(h => (
+                    <th key={h} style={{ padding: '12px 24px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {staffList.map(s => (
+                  <tr key={s.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{s.name}</td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B', textTransform: 'capitalize' }}>{s.role}</td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', color: '#334155' }}>
+                      {s.hourly_rate ? `£${parseFloat(s.hourly_rate).toFixed(2)}/hr` : <span style={{ color: '#94A3B8' }}>Not set — edit in Account Management</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+        {/* Time Tracking */}
+        {sectionCard('Time Tracking (All Staff)', smallBtn('+ Add Manual Entry', openAddTimeEntryModal, <Plus size={14} />), (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  {['Staff', 'Date', 'Clock In', 'Clock Out', 'Hours', 'Project', ''].map(h => (
+                    <th key={h} style={{ padding: '12px 24px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {timeEntries.map(entry => (
+                  <tr key={entry.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{entry.user?.name || '—'}</td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>{new Date(entry.clock_in).toLocaleDateString('en-GB')}</td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>{new Date(entry.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>
+                      {entry.clock_out
+                        ? new Date(entry.clock_out).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+                        : <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '8px', fontWeight: '700', backgroundColor: '#F0FDF4', color: '#22C55E' }}>In Progress</span>}
+                    </td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{entry.hours !== null ? `${parseFloat(entry.hours).toFixed(2)}h` : '—'}</td>
+                    <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>{entry.workProject?.title || '—'}</td>
+                    <td style={{ padding: '12px 24px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => openEditTimeEntryModal(entry)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer' }} title="Edit"><Edit2 size={15} /></button>
+                        <button onClick={() => deleteTimeEntry(entry.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }} title="Delete"><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {timeEntries.length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>No time entries recorded.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+        {/* Advances */}
+        {sectionCard('Staff Advances', smallBtn('+ Give Advance', openAddAdvanceModal, <Plus size={14} />), (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  {['Staff', 'Amount', 'Date', 'Note', 'Status', ''].map(h => (
+                    <th key={h} style={{ padding: '12px 24px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {staffAdvances.map(adv => {
+                  const badge = adv.deducted ? statusBadge('Paid') : statusBadge('Pending');
+                  return (
+                    <tr key={adv.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{adv.user?.name || '—'}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', fontWeight: '800', color: '#EF4444' }}>£{parseFloat(adv.amount || 0).toFixed(2)}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>{adv.date ? new Date(adv.date).toLocaleDateString('en-GB') : '—'}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>{adv.note || '—'}</td>
+                      <td style={{ padding: '12px 24px' }}>
+                        <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', fontWeight: '700', backgroundColor: badge.bg, color: badge.color }}>
+                          {adv.deducted ? 'Deducted' : 'Pending'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 24px', textAlign: 'right' }}>
+                        <button
+                          onClick={() => !adv.deducted && deleteAdvance(adv.id)}
+                          disabled={adv.deducted}
+                          title={adv.deducted ? 'Already applied to a paid salary and cannot be deleted' : 'Delete'}
+                          style={{ padding: '6px', backgroundColor: adv.deducted ? '#F1F5F9' : '#FEF2F2', color: adv.deducted ? '#CBD5E1' : '#EF4444', border: 'none', borderRadius: '6px', cursor: adv.deducted ? 'not-allowed' : 'pointer' }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {staffAdvances.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>No advances recorded.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+        {/* Salary Payments */}
+        {sectionCard('Salary Payments', smallBtn('+ Generate Salary', openGeneratePayrollModal, <Plus size={14} />), (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  {['Staff', 'Period', 'Hours', 'Rate', 'Gross', 'Advances', 'Net', 'Status', ''].map(h => (
+                    <th key={h} style={{ padding: '12px 24px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {salaryPayments.map(sp => {
+                  const badge = statusBadge(sp.status);
+                  return (
+                    <tr key={sp.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>{sp.user?.name || '—'}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#64748B' }}>
+                        {new Date(sp.period_start).toLocaleDateString('en-GB')} – {new Date(sp.period_end).toLocaleDateString('en-GB')}
+                      </td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#334155' }}>{parseFloat(sp.hours_worked).toFixed(2)}h</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#334155' }}>£{parseFloat(sp.hourly_rate).toFixed(2)}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#334155' }}>£{parseFloat(sp.gross_amount).toFixed(2)}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '13px', color: '#EF4444' }}>£{parseFloat(sp.advances_deducted).toFixed(2)}</td>
+                      <td style={{ padding: '12px 24px', fontSize: '14px', fontWeight: '800', color: parseFloat(sp.net_amount) >= 0 ? '#22C55E' : '#EF4444' }}>£{parseFloat(sp.net_amount).toFixed(2)}</td>
+                      <td style={{ padding: '12px 24px' }}>
+                        <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', fontWeight: '700', backgroundColor: badge.bg, color: badge.color }}>
+                          {sp.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 24px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          {sp.status === 'Pending' && (
+                            <button onClick={() => markPayrollPaid(sp.id)} style={{ padding: '6px 10px', backgroundColor: '#F0FDF4', color: '#22C55E', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }} title="Mark Paid">
+                              Mark Paid
+                            </button>
+                          )}
+                          {sp.status === 'Pending' && (
+                            <button onClick={() => deletePayroll(sp.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer' }} title="Delete"><Trash2 size={15} /></button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {salaryPayments.length === 0 && (
+                  <tr>
+                    <td colSpan="9" style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>No salary payments generated.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+        {/* Manual Time Entry Modal */}
+        {isTimeEntryModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>{editingTimeEntry ? 'Edit Time Entry' : 'Add Manual Time Entry'}</h3>
+                <button onClick={() => setIsTimeEntryModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleTimeEntrySubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Staff *</label>
+                    <select required value={timeEntryForm.data.user_id} onChange={(e) => timeEntryForm.setData('user_id', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                      <option value="">Select staff member</option>
+                      {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    {timeEntryForm.errors.user_id && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{timeEntryForm.errors.user_id}</div>}
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Project</label>
+                    <select value={timeEntryForm.data.work_project_id} onChange={(e) => timeEntryForm.setData('work_project_id', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                      <option value="">None</option>
+                      {workProjects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Clock In *</label>
+                      <input type="datetime-local" required value={timeEntryForm.data.clock_in} onChange={(e) => timeEntryForm.setData('clock_in', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {timeEntryForm.errors.clock_in && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{timeEntryForm.errors.clock_in}</div>}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Clock Out</label>
+                      <input type="datetime-local" value={timeEntryForm.data.clock_out} onChange={(e) => timeEntryForm.setData('clock_out', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {timeEntryForm.errors.clock_out && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{timeEntryForm.errors.clock_out}</div>}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Notes</label>
+                    <textarea rows={2} value={timeEntryForm.data.notes} onChange={(e) => timeEntryForm.setData('notes', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setIsTimeEntryModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={timeEntryForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                    {timeEntryForm.processing ? 'Saving...' : 'Save Entry'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Advance Modal */}
+        {isAdvanceModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>Give Advance</h3>
+                <button onClick={() => setIsAdvanceModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleAdvanceSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Staff *</label>
+                    <select required value={advanceForm.data.user_id} onChange={(e) => advanceForm.setData('user_id', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                      <option value="">Select staff member</option>
+                      {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    {advanceForm.errors.user_id && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{advanceForm.errors.user_id}</div>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Amount (£) *</label>
+                      <input type="number" step="0.01" min="0.01" required value={advanceForm.data.amount} onChange={(e) => advanceForm.setData('amount', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {advanceForm.errors.amount && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{advanceForm.errors.amount}</div>}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Date *</label>
+                      <input type="date" required value={advanceForm.data.date} onChange={(e) => advanceForm.setData('date', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {advanceForm.errors.date && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{advanceForm.errors.date}</div>}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Note</label>
+                    <textarea rows={2} value={advanceForm.data.note} onChange={(e) => advanceForm.setData('note', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setIsAdvanceModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={advanceForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                    {advanceForm.processing ? 'Saving...' : 'Give Advance'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Generate Payroll Modal */}
+        {isPayrollModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>Generate Salary</h3>
+                <button onClick={() => setIsPayrollModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+              </div>
+              <form onSubmit={handlePayrollSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Staff *</label>
+                    <select required value={payrollForm.data.user_id} onChange={(e) => payrollForm.setData('user_id', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}>
+                      <option value="">Select staff member</option>
+                      {staffList.map(s => <option key={s.id} value={s.id}>{s.name}{s.hourly_rate ? ` (£${parseFloat(s.hourly_rate).toFixed(2)}/hr)` : ' (no rate set)'}</option>)}
+                    </select>
+                    {payrollForm.errors.user_id && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{payrollForm.errors.user_id}</div>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Period Start *</label>
+                      <input type="date" required value={payrollForm.data.period_start} onChange={(e) => payrollForm.setData('period_start', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {payrollForm.errors.period_start && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{payrollForm.errors.period_start}</div>}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Period End *</label>
+                      <input type="date" required value={payrollForm.data.period_end} onChange={(e) => payrollForm.setData('period_end', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                      {payrollForm.errors.period_end && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{payrollForm.errors.period_end}</div>}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setIsPayrollModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={payrollForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                    {payrollForm.processing ? 'Generating...' : 'Generate Salary'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'overview': return renderOverview();
+      case 'timeclock': return renderTimeClock();
+      case 'payroll': return renderPayrollCMS();
       case 'profile': return renderProfile();
       case 'home': return renderHomeCMS();
       case 'about': return renderAboutCMS();
@@ -3368,11 +5938,21 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       case 'tracking': return renderTrackingSettings();
       case 'gallery': return renderGalleryCMS();
       case 'inbox': return renderInbox();
-      case 'customers': return renderCustomersCMS();
+      case 'customers_list': return renderCustomerListPage();
+      case 'customers_add': return renderCustomerAddPage();
+      case 'customers_import': return renderCustomerImportPage();
+      case 'customers_logs': return renderCustomerLogsPage();
       case 'reviews_cms': return renderReviewsControl();
       case 'invoices': return renderInvoicesCMS();
+      case 'projects': return renderWorkProjectsCMS();
+      case 'finance': return renderFinanceCMS();
+      case 'finance_accounts': return renderFinanceAccountsPage();
+      case 'finance_suppliers': return renderSuppliersPage();
+      case 'finance_receivables': return renderReceivablesPage();
+      case 'finance_reports': return renderFinancialReportsPage();
       case 'accounts': return renderAccountsCMS();
       case 'payments': return renderPaymentSettings();
+      case 'payment_accounts': return renderPaymentAccountsPage();
       default: return renderOverview();
     }
   };
@@ -3380,12 +5960,12 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'Inter, sans-serif' }}>
       
-      {/* --- SIDEBAR (Light Aesthetic) --- */}
+      {/* --- SIDEBAR (Dark Navy Aesthetic) --- */}
       <aside
         style={{
           width: '280px',
-          backgroundColor: '#FFFFFF', // Light Mode Sidebar
-          borderRight: '1px solid #E2E8F0',
+          background: 'linear-gradient(180deg, #1a1f4d 0%, #141833 100%)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
           display: 'flex',
           flexDirection: 'column',
           position: 'fixed',
@@ -3393,59 +5973,137 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           bottom: 0,
           left: 0,
           zIndex: 40,
-          boxShadow: '2px 0 10px rgba(0,0,0,0.02)'
+          boxShadow: '2px 0 16px rgba(0,0,0,0.25)'
         }}
       >
         {/* Brand Logo Area */}
-        <div style={{ padding: '30px 24px', borderBottom: '1px solid #F1F5F9' }}>
+        <div style={{ padding: '30px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <Logo />
         </div>
 
         {/* Navigation */}
-        <nav style={{ flex: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto' }}>
-          <p style={{ fontSize: '11px', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', paddingLeft: '12px' }}>Admin Controls</p>
-          
-          {sidebarItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px',
-                width: '100%',
-                padding: '14px 16px',
-                borderRadius: '12px',
-                backgroundColor: activeTab === item.id ? 'var(--color-primary-light)' : 'transparent',
-                color: activeTab === item.id ? 'var(--color-primary)' : '#64748B',
-                fontSize: '14px',
-                fontWeight: activeTab === item.id ? '800' : '600',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                textAlign: 'left'
-              }}
-              onMouseOver={(e) => {
-                if (activeTab !== item.id) {
-                  e.currentTarget.style.backgroundColor = '#F1F5F9';
-                  e.currentTarget.style.color = '#334155';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (activeTab !== item.id) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = '#64748B';
-                }
-              }}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+        <nav style={{ flex: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
+          <style>{`
+            .sb-item { transition: background-color 0.15s ease, color 0.15s ease; }
+            .sb-item:hover { background-color: rgba(255,255,255,0.06); color: #FFFFFF; }
+            .sb-item.sb-active:hover { background-color: rgba(255,255,255,0.06); }
+            .sb-chevron { transition: transform 0.2s ease; }
+          `}</style>
+          <p style={{ fontSize: '11px', fontWeight: '800', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', paddingLeft: '12px' }}>Admin Controls</p>
+
+          {navGroups.map((entry) => {
+            if (entry.type === 'single') {
+              const isActive = activeTab === entry.id;
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => setActiveTab(entry.id)}
+                  className={`sb-item${isActive ? ' sb-active' : ''}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    width: '100%',
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    background: isActive ? 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)' : 'transparent',
+                    color: isActive ? '#FFFFFF' : '#CBD5E1',
+                    fontSize: '14px',
+                    fontWeight: isActive ? '800' : '600',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    boxShadow: isActive ? '0 6px 16px rgba(236,72,153,0.35)' : 'none'
+                  }}
+                >
+                  <entry.icon size={20} />
+                  <span>{entry.label}</span>
+                </button>
+              );
+            }
+
+            // Group with children
+            const isExpanded = expandedGroups.has(entry.id);
+            const hasActiveChild = entry.children.some(c => c.id === activeTab);
+
+            return (
+              <div key={entry.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                <button
+                  onClick={() => toggleGroup(entry.id)}
+                  className="sb-item"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    width: '100%',
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    background: hasActiveChild ? 'linear-gradient(135deg, var(--color-secondary) 0%, #EC4899 100%)' : 'transparent',
+                    color: hasActiveChild ? '#FFFFFF' : '#E2E8F0',
+                    fontSize: '14px',
+                    fontWeight: '800',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    boxShadow: hasActiveChild ? '0 6px 16px rgba(236,72,153,0.35)' : 'none'
+                  }}
+                >
+                  <entry.icon size={20} />
+                  <span style={{ flex: 1 }}>{entry.label}</span>
+                  <ChevronRight
+                    size={16}
+                    className="sb-chevron"
+                    style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}
+                  />
+                </button>
+
+                {isExpanded && (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', gap: '2px', marginTop: hasActiveChild ? '-6px' : '2px',
+                    marginLeft: '12px', paddingLeft: '14px', paddingTop: hasActiveChild ? '10px' : '0',
+                    paddingBottom: hasActiveChild ? '10px' : '0',
+                    borderLeft: hasActiveChild ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                    background: hasActiveChild ? 'rgba(236,72,153,0.08)' : 'transparent',
+                    borderRadius: hasActiveChild ? '0 0 12px 12px' : '0'
+                  }}>
+                    {entry.children.map((child) => {
+                      const isActive = activeTab === child.id;
+                      return (
+                        <button
+                          key={child.id}
+                          onClick={() => setActiveTab(child.id)}
+                          className={`sb-item${isActive ? ' sb-active' : ''}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            width: '100%',
+                            padding: '11px 14px',
+                            borderRadius: '10px',
+                            backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            color: isActive ? '#FFFFFF' : '#94A3B8',
+                            fontSize: '13px',
+                            fontWeight: isActive ? '800' : '600',
+                            border: 'none',
+                            borderLeft: isActive ? '3px solid #FFFFFF' : '3px solid transparent',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <child.icon size={16} />
+                          <span>{child.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Logout Bottom */}
-        <div style={{ padding: '24px 16px', borderTop: '1px solid #F1F5F9' }}>
+        <div style={{ padding: '24px 16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <button
             onClick={handleLogout}
             style={{
@@ -3456,14 +6114,14 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
               padding: '14px 16px',
               borderRadius: '12px',
               backgroundColor: 'transparent',
-              color: '#EF4444',
+              color: '#F87171',
               fontSize: '14px',
               fontWeight: '700',
               border: 'none',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.15)'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <LogOut size={20} />
@@ -3696,17 +6354,30 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                   />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
-                  <select
-                    value={customerForm.data.status}
-                    onChange={(e) => customerForm.setData('status', e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}
-                  >
-                    <option value="Lead">Lead</option>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Status</label>
+                    <select
+                      value={customerForm.data.status}
+                      onChange={(e) => customerForm.setData('status', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', backgroundColor: '#FFF' }}
+                    >
+                      <option value="Lead">Lead</option>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Credit Limit (£)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customerForm.data.credit_limit}
+                      onChange={(e) => customerForm.setData('credit_limit', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -3808,6 +6479,20 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     <option value="admin">Admin</option>
                   </select>
                   {accountForm.errors.role && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.role}</div>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Hourly Rate (£)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={accountForm.data.hourly_rate}
+                    onChange={(e) => accountForm.setData('hourly_rate', e.target.value)}
+                    placeholder="e.g. 15.50"
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                  {accountForm.errors.hourly_rate && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{accountForm.errors.hourly_rate}</div>}
                 </div>
 
                 <div>

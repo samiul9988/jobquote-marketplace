@@ -10,6 +10,7 @@ import PortfolioSection from '../components/sections/PortfolioSection';
 import TestimonialsSection from '../components/sections/TestimonialsSection';
 import ServiceAreaSection from '../components/sections/ServiceAreaSection';
 import FaqSection from '../components/sections/FaqSection';
+import PaymentBannerSection from '../components/sections/PaymentBannerSection';
 import CtaBannerSection from '../components/sections/CtaBannerSection';
 
 export default function HomePage({ onOpenQuote, onSelectService, onOpenLightbox }) {
@@ -47,10 +48,13 @@ export default function HomePage({ onOpenQuote, onSelectService, onOpenLightbox 
       {/* 9. Service Area Liverpool */}
       <ServiceAreaSection onOpenQuote={onOpenQuote} />
 
-      {/* 10. FAQs */}
+      {/* 10. Existing Customer Payment Banner */}
+      <PaymentBannerSection />
+
+      {/* 11. FAQs */}
       <FaqSection onOpenQuote={onOpenQuote} faqs={faqs} />
 
-      {/* 11. Final Conversion CTA Banner */}
+      {/* 12. Final Conversion CTA Banner */}
       <CtaBannerSection onOpenQuote={onOpenQuote} />
     </div>
   );

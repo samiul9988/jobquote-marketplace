@@ -18,6 +18,7 @@ class AccountController extends Controller
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8',
             'role' => 'required|in:admin,staff',
+            'hourly_rate' => 'nullable|numeric|min:0',
         ]);
 
         User::create([
@@ -25,6 +26,7 @@ class AccountController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'hourly_rate' => $validated['hourly_rate'] ?? null,
             'is_active' => true,
             'email_verified_at' => now(),
         ]);
@@ -45,6 +47,7 @@ class AccountController extends Controller
             'email' => 'required|email|max:255|unique:users,email,' . $id,
             'role' => 'required|in:admin,staff',
             'password' => 'nullable|string|min:8',
+            'hourly_rate' => 'nullable|numeric|min:0',
         ]);
 
         if ($id == $request->user()->id && $validated['role'] !== 'admin') {
@@ -55,6 +58,7 @@ class AccountController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => $validated['role'],
+            'hourly_rate' => $validated['hourly_rate'] ?? null,
         ];
 
         if (!empty($validated['password'])) {

@@ -18,6 +18,14 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\TrackingEventController;
+use App\Http\Controllers\WorkProjectController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TimeEntryController;
+use App\Http\Controllers\StaffAdvanceController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\FinanceAccountController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\PaymentAccountController;
 
 Route::post('/quotes', [QuoteController::class, 'store']);
 Route::post('/find-tradesperson', [QuoteController::class, 'storeTrade']);
@@ -37,6 +45,7 @@ Route::controller(FrontendController::class)->group(function () {
     Route::get('/reviews', 'reviews');
     Route::get('/careers', 'careers');
     Route::get('/contact', 'contact');
+    Route::get('/payment-info', 'paymentInfo');
 });
 
 Route::middleware('guest')->group(function () {
@@ -73,6 +82,11 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // Payment Account Setup
     Route::post('/dashboard/payment-settings', [PaymentSettingController::class, 'update']);
+
+    // Payment Receiving Accounts (shown on public /payment-info page)
+    Route::post('/dashboard/payment-accounts', [PaymentAccountController::class, 'store']);
+    Route::post('/dashboard/payment-accounts/{id}', [PaymentAccountController::class, 'update']);
+    Route::delete('/dashboard/payment-accounts/{id}', [PaymentAccountController::class, 'destroy']);
     Route::post('/dashboard/about', [SettingController::class, 'updateAbout']);
     Route::post('/dashboard/home', [SettingController::class, 'updateHome']);
 
@@ -107,6 +121,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // Customer Management
     Route::post('/dashboard/customers', [CustomerController::class, 'store']);
+    Route::post('/dashboard/customers/import', [CustomerController::class, 'import']);
     Route::post('/dashboard/customers/{id}', [CustomerController::class, 'update']);
     Route::delete('/dashboard/customers/{id}', [CustomerController::class, 'destroy']);
     Route::post('/dashboard/customers/{id}/note', [CustomerController::class, 'addNote']);
@@ -118,6 +133,42 @@ Route::middleware(['auth', 'staff'])->group(function () {
     Route::delete('/dashboard/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::post('/dashboard/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
     Route::post('/dashboard/quotes/{id}/generate-invoice', [InvoiceController::class, 'generateFromQuote']);
+
+    // Projects (WorkProject)
+    Route::post('/dashboard/work-projects', [WorkProjectController::class, 'store']);
+    Route::post('/dashboard/work-projects/{id}', [WorkProjectController::class, 'update']);
+    Route::delete('/dashboard/work-projects/{id}', [WorkProjectController::class, 'destroy']);
+    Route::post('/dashboard/work-projects/{id}/status', [WorkProjectController::class, 'updateStatus']);
+
+    // Income & Expenses (Transactions)
+    Route::post('/dashboard/transactions', [TransactionController::class, 'store']);
+    Route::delete('/dashboard/transactions/{id}', [TransactionController::class, 'destroy']);
+
+    // Finance Accounts (Cash / Bank Management)
+    Route::post('/dashboard/finance-accounts', [FinanceAccountController::class, 'store']);
+    Route::post('/dashboard/finance-accounts/{id}', [FinanceAccountController::class, 'update']);
+    Route::delete('/dashboard/finance-accounts/{id}', [FinanceAccountController::class, 'destroy']);
+
+    // Suppliers (Supplier Payable)
+    Route::post('/dashboard/suppliers', [SupplierController::class, 'store']);
+    Route::post('/dashboard/suppliers/{id}', [SupplierController::class, 'update']);
+    Route::delete('/dashboard/suppliers/{id}', [SupplierController::class, 'destroy']);
+
+    // Time Clock (self-service) & Time Entries (admin corrections)
+    Route::post('/dashboard/time-entries/clock-in', [TimeEntryController::class, 'clockIn']);
+    Route::post('/dashboard/time-entries/clock-out', [TimeEntryController::class, 'clockOut']);
+    Route::post('/dashboard/time-entries', [TimeEntryController::class, 'store']);
+    Route::post('/dashboard/time-entries/{id}', [TimeEntryController::class, 'update']);
+    Route::delete('/dashboard/time-entries/{id}', [TimeEntryController::class, 'destroy']);
+
+    // Staff Advances
+    Route::post('/dashboard/advances', [StaffAdvanceController::class, 'store']);
+    Route::delete('/dashboard/advances/{id}', [StaffAdvanceController::class, 'destroy']);
+
+    // Payroll
+    Route::post('/dashboard/payroll/generate', [PayrollController::class, 'generate']);
+    Route::post('/dashboard/payroll/{id}/pay', [PayrollController::class, 'markPaid']);
+    Route::delete('/dashboard/payroll/{id}', [PayrollController::class, 'destroy']);
 
     // Account Management
     Route::post('/dashboard/accounts', [AccountController::class, 'store']);

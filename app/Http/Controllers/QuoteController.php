@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Quote;
 use App\Models\Customer;
+use App\Models\CustomerLog;
 
 class QuoteController extends Controller
 {
@@ -128,6 +129,14 @@ class QuoteController extends Controller
                 'status' => 'Lead',
                 'source' => $source,
             ]);
+
+            CustomerLog::create([
+                'customer_id' => $customer->id,
+                'action' => 'created',
+                'description' => 'Auto-created from a website quote request',
+                'created_by' => null,
+            ]);
+
             return $customer;
         }
 

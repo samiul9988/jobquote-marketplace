@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Invoice;
 use App\Models\Quote;
+use App\Models\WorkProject;
+use App\Models\Transaction;
 
 class InvoiceController extends Controller
 {
@@ -80,6 +82,26 @@ class InvoiceController extends Controller
         $invoice = Invoice::findOrFail($id);
         $invoice->update(['status' => $validated['status']]);
 
+        if ($validated['status'] === 'Paid') {
+            $alreadyPosted = Transaction::where('source_type', 'invoice')
+                ->where('source_id', $invoice->id)
+                ->exists();
+
+            if (!$alreadyPosted) {
+                Transaction::create([
+                    'type' => 'income',
+                    'amount' => $invoice->total,
+                    'category' => 'Invoice Payment',
+                    'description' => "Invoice {$invoice->invoice_number}",
+                    'work_project_id' => $invoice->work_project_id,
+                    'source_type' => 'invoice',
+                    'source_id' => $invoice->id,
+                    'date' => now(),
+                    'created_by' => null,
+                ]);
+            }
+        }
+
         return back()->with('success', 'Invoice status updated!');
     }
 
@@ -100,10 +122,22 @@ class InvoiceController extends Controller
 
         $totals = $this->calculateTotals($items, 0);
 
+        $workProject = WorkProject::where('quote_id', $quote->id)->first();
+        if (!$workProject) {
+            $workProject = WorkProject::create([
+                'title' => ($quote->service ?? 'Project') . ' - ' . $quote->customer->name,
+                'customer_id' => $quote->customer_id,
+                'quote_id' => $quote->id,
+                'status' => 'Active',
+                'started_at' => now(),
+            ]);
+        }
+
         $invoice = Invoice::create([
             'invoice_number' => $this->nextInvoiceNumber(),
             'customer_id' => $quote->customer_id,
             'quote_id' => $quote->id,
+            'work_project_id' => $workProject->id,
             'items' => $items,
             'advance' => 0,
             'total' => $totals['total'],

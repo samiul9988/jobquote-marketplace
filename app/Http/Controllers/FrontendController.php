@@ -7,9 +7,16 @@ use App\Models\HeroImage;
 use App\Models\Faq as FaqModel;
 use App\Models\JobPost;
 use App\Models\Review;
+use App\Models\PaymentAccount;
 
 class FrontendController extends Controller
 {
+    public function paymentInfo()
+    {
+        $paymentAccounts = PaymentAccount::where('status', 'Active')->orderBy('order')->orderBy('id')->get();
+        return Inertia::render('PaymentInfoPage', ['paymentAccounts' => $paymentAccounts]);
+    }
+
     public function serviceDetails($slug) {
         $service = Service::where('service_id', $slug)->firstOrFail();
         return Inertia::render('ServiceDetailsPage', ['service' => $service]);
