@@ -23,7 +23,7 @@ export function logTrackingEvent(eventType, extra = {}) {
 
     const payload = {
       event_type: eventType,
-      page_url: window.location.pathname,
+      page_url: window.location.pathname + window.location.search,
       page_title: document.title,
       referrer: document.referrer || null,
       session_id: sid,

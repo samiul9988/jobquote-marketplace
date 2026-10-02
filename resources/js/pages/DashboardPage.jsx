@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
+  Hammer,
+  PaintRoller,
   LayoutDashboard,
   Home as HomeIcon,
   Info,
@@ -83,6 +85,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
   const [liveStats, setLiveStats] = useState(null);
   const [recentEvents, setRecentEvents] = useState([]);
+  const [pageBreakdown, setPageBreakdown] = useState([]);
+  const [clickBreakdown, setClickBreakdown] = useState([]);
 
   useEffect(() => {
     if (activeTab !== 'tracking' && activeTab !== 'overview') return undefined;
@@ -95,6 +99,8 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           if (!cancelled && data) {
             setLiveStats(data.stats);
             setRecentEvents(data.recent || []);
+            setPageBreakdown(data.pages || []);
+            setClickBreakdown(data.clicks || []);
           }
         })
         .catch(() => {});
@@ -2455,6 +2461,16 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+            <StatCard
+              label="Carpentry / Joinery Visitors"
+              value={liveStats ? (pageBreakdown.find(p => p.page_url?.includes('trade=carpentry'))?.visitors || 0) : '—'}
+              icon={<Hammer size={16} color="#94A3B8" />}
+            />
+            <StatCard
+              label="Painting & Decorating Visitors"
+              value={liveStats ? (pageBreakdown.find(p => p.page_url?.includes('trade=painting'))?.visitors || 0) : '—'}
+              icon={<PaintRoller size={16} color="#94A3B8" />}
+            />
             <StatCard label="Today's Pageviews" value={liveStats ? liveStats.today_pageviews : '—'} icon={<Eye size={16} color="#94A3B8" />} />
             <StatCard label="Unique Visitors Today" value={liveStats ? liveStats.today_unique_sessions : '—'} icon={<Wifi size={16} color="#94A3B8" />} />
             <StatCard label="Events (Last 5 min)" value={liveStats ? liveStats.last_5_min_events : '—'} live />
@@ -2479,6 +2495,72 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                         <td style={{ padding: '10px 16px', width: '110px' }}>{eventBadge(ev.event_type)}</td>
                         <td style={{ padding: '10px 16px', color: '#334155', fontWeight: '600', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.page_url}</td>
                         <td style={{ padding: '10px 16px', color: '#64748B', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.referrer || 'Direct'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Per-page views breakdown, e.g. /find-tradesperson?trade=carpentry vs ?trade=painting */}
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflow: 'hidden', marginTop: '20px' }}>
+            <div style={{ padding: '12px 16px', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+              Page Performance Today (Views &amp; Unique Visitors)
+            </div>
+            <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+              {pageBreakdown.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                  No pageviews recorded today yet.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC' }}>
+                      {['Page', 'Views', 'Unique Visitors'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '10px 16px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageBreakdown.map((p, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: '600', maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.page_url}</td>
+                        <td style={{ padding: '10px 16px', color: '#0F172A', fontWeight: '800' }}>{p.views}</td>
+                        <td style={{ padding: '10px 16px', color: '#64748B' }}>{p.visitors}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Clicks on the Carpentry / Painting trade-selection buttons */}
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflow: 'hidden', marginTop: '20px' }}>
+            <div style={{ padding: '12px 16px', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+              Trade Interest Clicks Today (Carpentry vs Painting)
+            </div>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              {clickBreakdown.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                  No trade button clicks recorded today yet.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC' }}>
+                      {['Link Clicked', 'Clicks', 'Unique Visitors'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '10px 16px', fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clickBreakdown.map((c, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: '600', maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.page_url}</td>
+                        <td style={{ padding: '10px 16px', color: '#0F172A', fontWeight: '800' }}>{c.clicks}</td>
+                        <td style={{ padding: '10px 16px', color: '#64748B' }}>{c.visitors}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { router } from '@inertiajs/react';
 import { X, Hammer, PaintRoller } from 'lucide-react';
+import { logTrackingEvent } from '../../utils/loadTracking';
 
 // "Find a Tradesperson" trade-picker popup. Replaces the old QuoteModal as the
 // action behind every "Get a Free Quote" button site-wide (see MainLayout.jsx).
@@ -40,7 +41,10 @@ export default function TradeQuoteModal({ isOpen, onClose }) {
           ].map(({ key, label, Icon }) => (
             <button
               key={key}
-              onClick={() => router.visit(`/find-tradesperson?trade=${key}`)}
+              onClick={() => {
+                logTrackingEvent('cta_click', { page_url: `/find-tradesperson?trade=${key}` });
+                router.visit(`/find-tradesperson?trade=${key}`);
+              }}
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px', padding: '28px 12px', border: '1px solid #E2E8F0', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: 'var(--color-text-main)' }}
             >
               <Icon size={38} strokeWidth={2} />

@@ -61,6 +61,25 @@ class TrackingEventController extends Controller
             ->limit(25)
             ->get(['id', 'event_type', 'page_url', 'page_title', 'referrer', 'created_at']);
 
+        // Per-page breakdown for today: how many times each page was viewed,
+        // and by how many unique visitors (sessions).
+        $pageBreakdown = TrackingEvent::where('created_at', '>=', $today)
+            ->where('event_type', 'pageview')
+            ->select('page_url', DB::raw('count(*) as views'), DB::raw('count(distinct session_id) as visitors'))
+            ->groupBy('page_url')
+            ->orderByDesc('views')
+            ->limit(25)
+            ->get();
+
+        // Per-link click breakdown for today (e.g. the "Carpentry" / "Painting"
+        // trade buttons inside the Find a Tradesperson popup).
+        $clickBreakdown = TrackingEvent::where('created_at', '>=', $today)
+            ->where('event_type', 'cta_click')
+            ->select('page_url', DB::raw('count(*) as clicks'), DB::raw('count(distinct session_id) as visitors'))
+            ->groupBy('page_url')
+            ->orderByDesc('clicks')
+            ->get();
+
         return response()->json([
             'stats' => [
                 'today_pageviews' => $todayPageviews,
@@ -69,6 +88,8 @@ class TrackingEventController extends Controller
                 'today_events_by_type' => $todayEventsByType,
             ],
             'recent' => $recent,
+            'pages' => $pageBreakdown,
+            'clicks' => $clickBreakdown,
         ]);
     }
 }
