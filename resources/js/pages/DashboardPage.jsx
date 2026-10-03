@@ -1182,7 +1182,6 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       type: 'group', id: 'finance', label: 'Account Management', icon: Wallet,
       children: [
         { id: 'finance', label: 'Income & Expenses', icon: Wallet },
-        { id: 'finance_accounts', label: 'Cash & Bank Accounts', icon: Wallet },
         { id: 'finance_suppliers', label: 'Suppliers & Payable', icon: Briefcase },
         { id: 'finance_receivables', label: 'Customer Receivable', icon: Users },
         { id: 'finance_reports', label: 'Financial Reports', icon: FileText },
@@ -1206,7 +1205,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
         { id: 'tracking', label: 'Tracking & Pixels', icon: Radar },
         { id: 'payments', label: 'Payment Gateway Setup', icon: CreditCard },
         { id: 'payment_accounts', label: 'Payment Receiving Accounts', icon: Wallet },
-        ...(auth?.user?.role === 'admin' ? [{ id: 'accounts', label: 'Account Management', icon: ShieldCheck }] : []),
+        ...(auth?.user?.role === 'admin' ? [{ id: 'accounts', label: 'Staff & Admin Access', icon: ShieldCheck }] : []),
       ]
     },
   ].filter(g => g.type === 'single' || auth?.user?.role === 'admin' || (auth?.user?.permissions || []).includes(g.id));
@@ -3831,7 +3830,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>Account Management</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>Staff & Admin Access</h2>
             <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Manage admin and staff accounts with access to this dashboard.</p>
           </div>
           <button onClick={openAddAccountModal} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-sm)' }}>
