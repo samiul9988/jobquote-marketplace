@@ -133,12 +133,15 @@ Route::middleware(['auth', 'staff'])->group(function () {
     Route::delete('/dashboard/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::post('/dashboard/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
     Route::post('/dashboard/quotes/{id}/generate-invoice', [InvoiceController::class, 'generateFromQuote']);
+    Route::post('/dashboard/quotes/{id}/accept', [QuoteController::class, 'accept']);
+    Route::post('/dashboard/work-projects/{id}/generate-invoice', [InvoiceController::class, 'generateFromProject']);
 
     // Projects (WorkProject)
     Route::post('/dashboard/work-projects', [WorkProjectController::class, 'store']);
     Route::post('/dashboard/work-projects/{id}', [WorkProjectController::class, 'update']);
     Route::delete('/dashboard/work-projects/{id}', [WorkProjectController::class, 'destroy']);
     Route::post('/dashboard/work-projects/{id}/status', [WorkProjectController::class, 'updateStatus']);
+    Route::post('/dashboard/work-projects/{id}/price', [WorkProjectController::class, 'updatePrice']);
 
     // Income & Expenses (Transactions)
     Route::post('/dashboard/transactions', [TransactionController::class, 'store']);

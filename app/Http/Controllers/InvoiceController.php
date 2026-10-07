@@ -157,6 +157,49 @@ class InvoiceController extends Controller
         return back()->with('success', 'Invoice generated from quote!')->with('generated_invoice_id', $invoice->id);
     }
 
+    /**
+     * Generate an invoice from a project's current itemised price list.
+     * Used when the admin is ready to bill the customer for work agreed (or
+     * re-agreed) so far — the invoice line items are a direct snapshot of
+     * the project's price_items at this moment.
+     */
+    public function generateFromProject(Request $request, $projectId)
+    {
+        $workProject = WorkProject::with('customer')->findOrFail($projectId);
+
+        if (!$workProject->customer_id || !$workProject->customer) {
+            return back()->withErrors(['project' => 'This project has no linked customer, so an invoice cannot be generated.']);
+        }
+
+        $items = $workProject->price_items ?: [[
+            'description' => $workProject->title,
+            'amount' => (float) $workProject->agreed_price,
+        ]];
+
+        $totals = $this->calculateTotals($items, 0);
+
+        $invoice = Invoice::create([
+            'invoice_number' => $this->nextInvoiceNumber(),
+            'customer_id' => $workProject->customer_id,
+            'quote_id' => $workProject->quote_id,
+            'work_project_id' => $workProject->id,
+            'items' => $items,
+            'advance' => 0,
+            'total' => $totals['total'],
+            'due' => $totals['due'],
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(7)->toDateString(),
+            'status' => 'Unpaid',
+            'account_name' => 'SK Home Solutions',
+            'account_number' => null,
+            'sort_code' => null,
+            'payment_method' => 'BACS or FPS Payment Only',
+            'payment_term' => '7 Days from Invoice Date',
+        ]);
+
+        return back()->with('success', 'Invoice generated from project!')->with('generated_invoice_id', $invoice->id);
+    }
+
     private function validateInvoice(Request $request): array
     {
         return $request->validate([

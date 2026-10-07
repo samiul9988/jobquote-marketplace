@@ -12,6 +12,9 @@ class WorkProject extends Model
     protected $casts = [
         'started_at' => 'date',
         'completed_at' => 'date',
+        'price_items' => 'array',
+        'price_history' => 'array',
+        'agreed_price' => 'decimal:2',
     ];
     protected $appends = ['total_income', 'total_expense', 'net_profit'];
 

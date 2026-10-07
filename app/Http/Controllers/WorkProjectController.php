@@ -48,6 +48,43 @@ class WorkProjectController extends Controller
         return back()->with('success', 'Project deleted successfully!');
     }
 
+    /**
+     * Update the project's itemised agreed price. The job's scope commonly
+     * grows or shrinks while work is underway, so this can be called any
+     * number of times; each change is appended to price_history for an audit
+     * trail, and the new total feeds the project's income figures.
+     */
+    public function updatePrice(Request $request, $id)
+    {
+        $workProject = WorkProject::findOrFail($id);
+
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.description' => 'required|string|max:255',
+            'items.*.amount' => 'required|numeric|min:0',
+            'note' => 'nullable|string|max:255',
+        ]);
+
+        $total = collect($validated['items'])->sum(fn ($item) => (float) $item['amount']);
+
+        $workProject->update([
+            'price_items' => $validated['items'],
+            'agreed_price' => $total,
+            'price_history' => [
+                ...($workProject->price_history ?? []),
+                [
+                    'items' => $validated['items'],
+                    'total' => $total,
+                    'note' => $validated['note'] ?? 'Price updated',
+                    'updated_by' => $request->user()->name,
+                    'updated_at' => now()->toDateTimeString(),
+                ],
+            ],
+        ]);
+
+        return back()->with('success', 'Project price updated!');
+    }
+
     public function updateStatus(Request $request, $id)
     {
         $validated = $request->validate([

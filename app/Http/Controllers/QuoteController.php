@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use App\Models\Quote;
 use App\Models\Customer;
 use App\Models\CustomerLog;
+use App\Models\WorkProject;
 
 class QuoteController extends Controller
 {
@@ -100,6 +101,74 @@ class QuoteController extends Controller
         $quote = Quote::findOrFail($id);
         $quote->update(['status' => 'Read']);
         return back();
+    }
+
+    /**
+     * Admin has negotiated a final price with the customer by phone and is
+     * ready to start the job. Creates (or reuses) a WorkProject carrying the
+     * agreed itemised price, and marks the quote as Accepted. Invoices are
+     * generated separately, on demand, from the project's current price list.
+     */
+    public function accept(Request $request, $id)
+    {
+        $quote = Quote::with('customer')->findOrFail($id);
+
+        if (!$quote->customer_id || !$quote->customer) {
+            return back()->withErrors(['quote' => 'This quote has no linked customer, so a project cannot be started.']);
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'started_at' => 'nullable|date',
+            'items' => 'required|array|min:1',
+            'items.*.description' => 'required|string|max:255',
+            'items.*.amount' => 'required|numeric|min:0',
+        ]);
+
+        $total = collect($validated['items'])->sum(fn ($item) => (float) $item['amount']);
+
+        $workProject = WorkProject::where('quote_id', $quote->id)->first();
+
+        if ($workProject) {
+            $workProject->update([
+                'title' => $validated['title'],
+                'status' => 'Active',
+                'started_at' => $validated['started_at'] ?? $workProject->started_at ?? now(),
+                'price_items' => $validated['items'],
+                'agreed_price' => $total,
+                'price_history' => [
+                    ...($workProject->price_history ?? []),
+                    [
+                        'items' => $validated['items'],
+                        'total' => $total,
+                        'note' => 'Quote re-accepted',
+                        'updated_by' => $request->user()->name,
+                        'updated_at' => now()->toDateTimeString(),
+                    ],
+                ],
+            ]);
+        } else {
+            $workProject = WorkProject::create([
+                'title' => $validated['title'],
+                'customer_id' => $quote->customer_id,
+                'quote_id' => $quote->id,
+                'status' => 'Active',
+                'started_at' => $validated['started_at'] ?? now(),
+                'price_items' => $validated['items'],
+                'agreed_price' => $total,
+                'price_history' => [[
+                    'items' => $validated['items'],
+                    'total' => $total,
+                    'note' => 'Project started from accepted quote',
+                    'updated_by' => $request->user()->name,
+                    'updated_at' => now()->toDateTimeString(),
+                ]],
+            ]);
+        }
+
+        $quote->update(['status' => 'Accepted']);
+
+        return back()->with('success', 'Quote accepted and project started!')->with('started_project_id', $workProject->id);
     }
 
     /**

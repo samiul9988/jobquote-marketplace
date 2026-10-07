@@ -88,14 +88,10 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
   };
 
   const addItem = () => {
-    if (invoiceData.items.length < 5) {
-      setInvoiceData({
-        ...invoiceData,
-        items: [...invoiceData.items, { id: Date.now(), description: '', amount: 0 }]
-      });
-    } else {
-      alert("Maximum 5 items allowed for this pad template.");
-    }
+    setInvoiceData({
+      ...invoiceData,
+      items: [...invoiceData.items, { id: Date.now(), description: '', amount: 0 }]
+    });
   };
 
   const removeItem = (index) => {
@@ -235,7 +231,7 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
 
           <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-               <h3 style={{ fontSize: '14px', fontWeight: '700' }}>Line Items (Max 5)</h3>
+               <h3 style={{ fontSize: '14px', fontWeight: '700' }}>Line Items</h3>
                <button onClick={addItem} style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add Item</button>
             </div>
             {invoiceData.items.map((item, index) => (

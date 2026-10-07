@@ -3,6 +3,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
   Hammer,
   PaintRoller,
+  PoundSterling,
   LayoutDashboard,
   Home as HomeIcon,
   Info,
@@ -456,6 +457,137 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   const updateWorkProjectStatus = (id, status) => {
     router.post(`/dashboard/work-projects/${id}/status`, { status }, { preserveScroll: true });
   };
+
+  // --- Accept Quote -> Start Project (negotiated itemised price) ---
+  const [isAcceptQuoteModalOpen, setIsAcceptQuoteModalOpen] = useState(false);
+  const [acceptingQuote, setAcceptingQuote] = useState(null);
+  const acceptQuoteForm = useForm({
+    title: '',
+    started_at: new Date().toISOString().slice(0, 10),
+    items: [{ description: '', amount: '' }]
+  });
+
+  const priceItemsTotal = (items) => (items || []).reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+
+  const addPriceItemRow = (form) => {
+    form.setData('items', [...form.data.items, { description: '', amount: '' }]);
+  };
+  const removePriceItemRow = (form, idx) => {
+    form.setData('items', form.data.items.filter((_, i) => i !== idx));
+  };
+  const updatePriceItemRow = (form, idx, field, value) => {
+    const items = form.data.items.map((it, i) => i === idx ? { ...it, [field]: value } : it);
+    form.setData('items', items);
+  };
+
+  const openAcceptQuoteModal = (quote) => {
+    setAcceptingQuote(quote);
+    acceptQuoteForm.reset();
+    acceptQuoteForm.clearErrors();
+    acceptQuoteForm.setData({
+      title: `${quote.service || 'Project'} - ${quote.name || ''}`.trim(),
+      started_at: new Date().toISOString().slice(0, 10),
+      items: [{ description: quote.service || '', amount: '' }]
+    });
+    setIsAcceptQuoteModalOpen(true);
+  };
+
+  const handleAcceptQuoteSubmit = (e) => {
+    e.preventDefault();
+    acceptQuoteForm.post(`/dashboard/quotes/${acceptingQuote.id}/accept`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        if (!acceptQuoteForm.hasErrors) {
+          setIsAcceptQuoteModalOpen(false);
+          acceptQuoteForm.reset();
+          setActiveTab('projects');
+        }
+      }
+    });
+  };
+
+  // --- Project price update (scope/price changes while project is live) ---
+  const [isProjectPriceModalOpen, setIsProjectPriceModalOpen] = useState(false);
+  const [pricingProject, setPricingProject] = useState(null);
+  const projectPriceForm = useForm({ items: [{ description: '', amount: '' }], note: '' });
+
+  const openProjectPriceModal = (wp) => {
+    setPricingProject(wp);
+    projectPriceForm.reset();
+    projectPriceForm.clearErrors();
+    projectPriceForm.setData({
+      items: (wp.price_items && wp.price_items.length > 0) ? wp.price_items : [{ description: '', amount: '' }],
+      note: ''
+    });
+    setIsProjectPriceModalOpen(true);
+  };
+
+  const handleProjectPriceSubmit = (e) => {
+    e.preventDefault();
+    projectPriceForm.post(`/dashboard/work-projects/${pricingProject.id}/price`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        if (!projectPriceForm.hasErrors) {
+          setIsProjectPriceModalOpen(false);
+          projectPriceForm.reset();
+        }
+      }
+    });
+  };
+
+  const generateInvoiceFromProject = (id) => {
+    if (confirm('Generate a new invoice from this project\'s current price list?')) {
+      router.post(`/dashboard/work-projects/${id}/generate-invoice`, {}, {
+        preserveScroll: true,
+        onSuccess: () => { setActiveTab('invoices'); setInvoiceView('list'); }
+      });
+    }
+  };
+
+  // Shared itemised price-list editor used by the Accept Quote and Update
+  // Project Price modals — a growable list of {description, amount} rows.
+  const renderPriceItemsFields = (form) => (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>Priced Work Items *</label>
+        <button type="button" onClick={() => addPriceItemRow(form)} style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add Item</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto', paddingRight: '4px' }}>
+        {form.data.items.map((item, idx) => (
+          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 110px auto', gap: '8px', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder={`${idx + 1}) Description of work`}
+              value={item.description}
+              onChange={(e) => updatePriceItemRow(form, idx, 'description', e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
+            />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="£"
+              value={item.amount}
+              onChange={(e) => updatePriceItemRow(form, idx, 'amount', e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', outline: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => form.data.items.length > 1 && removePriceItemRow(form, idx)}
+              disabled={form.data.items.length <= 1}
+              style={{ padding: '8px', color: form.data.items.length > 1 ? '#EF4444' : '#CBD5E1', background: 'none', border: 'none', cursor: form.data.items.length > 1 ? 'pointer' : 'not-allowed' }}
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+        <span style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>Total: £{priceItemsTotal(form.data.items).toFixed(2)}</span>
+      </div>
+      {form.errors.items && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{form.errors.items}</div>}
+    </div>
+  );
 
   // --- INCOME & EXPENSES (Transactions) state/forms ---
   const [transactionSearch, setTransactionSearch] = useState('');
@@ -2838,18 +2970,10 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {inboxSubTab === 'quotes' && selectedItem.status !== 'Accepted' && (
                       <button
-                        onClick={() => {
-                          router.post(`/dashboard/quotes/${selectedItem.id}/generate-invoice`, {}, {
-                            preserveScroll: true,
-                            onSuccess: () => {
-                              setActiveTab('invoices');
-                              setInvoiceView('list');
-                            }
-                          });
-                        }}
+                        onClick={() => openAcceptQuoteModal(selectedItem)}
                         style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                       >
-                        <FileCheck size={15} /> Accept & Generate Invoice
+                        <FileCheck size={15} /> Accept &amp; Start Project
                       </button>
                     )}
                     <span style={{
@@ -4544,6 +4668,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     const activeProjects = workProjects.filter(p => p.status === 'Active').length;
     const completedProjects = workProjects.filter(p => p.status === 'Completed').length;
     const totalNetProfit = workProjects.reduce((s, p) => s + parseFloat(p.net_profit || 0), 0);
+    const totalAgreedPrice = workProjects.reduce((s, p) => s + parseFloat(p.agreed_price || 0), 0);
 
     const statCard = (label, value, color) => (
       <div style={{ flex: 1, padding: '18px 20px', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
@@ -4572,6 +4697,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
           {statCard('Total Projects', totalProjects)}
           {statCard('Active', activeProjects, '#3B82F6')}
           {statCard('Completed', completedProjects, '#22C55E')}
+          {statCard('Total Project Value', `£${totalAgreedPrice.toFixed(2)}`, 'var(--color-primary)')}
           {statCard('Total Net Profit', `£${totalNetProfit.toFixed(2)}`, totalNetProfit >= 0 ? '#22C55E' : '#EF4444')}
         </div>
 
@@ -4585,7 +4711,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
                 <thead>
                   <tr>
-                    {['Title', 'Customer', 'Status', 'Net Profit', ''].map(h => (
+                    {['Title', 'Customer', 'Status', 'Project Value', 'Net Profit', ''].map(h => (
                       <th key={h} style={{ position: 'sticky', top: 0, zIndex: 1, padding: '10px 12px', fontSize: '11px', fontWeight: '700', color: '#64748B', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -4621,6 +4747,9 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                             <option value="On Hold">On Hold</option>
                           </select>
                         </td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', fontWeight: '700', color: '#0F172A', whiteSpace: 'nowrap' }}>
+                          £{parseFloat(wp.agreed_price || 0).toFixed(2)}
+                        </td>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', fontWeight: '800', color: netProfit >= 0 ? '#22C55E' : '#EF4444', whiteSpace: 'nowrap' }}>
                           £{netProfit.toFixed(2)}
                         </td>
@@ -4628,6 +4757,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                             <button onClick={() => setSelectedWorkProjectId(wp.id)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="View"><Eye size={14} /></button>
                             <button onClick={() => { setSelectedWorkProjectId(wp.id); setTimeout(() => window.print(), 250); }} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Print"><Printer size={14} /></button>
+                            <button onClick={() => openProjectPriceModal(wp)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#D97706', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Update Price"><PoundSterling size={14} /></button>
                             <button onClick={() => openEditWorkProjectModal(wp)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Edit"><Edit2 size={14} /></button>
                             <button onClick={() => deleteWorkProject(wp.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Delete"><Trash2 size={14} /></button>
                           </div>
@@ -4657,13 +4787,19 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     <span style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '10px', fontWeight: '700', backgroundColor: (workProjectStatusColors[selectedWorkProject.status] || workProjectStatusColors.Active).bg, color: (workProjectStatusColors[selectedWorkProject.status] || workProjectStatusColors.Active).color }}>
                       {selectedWorkProject.status}
                     </span>
+                    <button onClick={() => generateInvoiceFromProject(selectedWorkProject.id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }} title="Generate Invoice"><FileCheck size={15} /> Generate Invoice</button>
+                    <button onClick={() => openProjectPriceModal(selectedWorkProject)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#D97706', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Update Price"><PoundSterling size={16} /></button>
                     <button onClick={() => window.print()} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Print"><Printer size={16} /></button>
                     <button onClick={() => openEditWorkProjectModal(selectedWorkProject)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
                     <button onClick={() => setSelectedWorkProjectId(null)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Close"><X size={16} /></button>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' }}>
+                  <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700' }}>Project Value</span>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-primary)' }}>£{parseFloat(selectedWorkProject.agreed_price || 0).toFixed(2)}</div>
+                  </div>
                   <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
                     <span style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700' }}>Income</span>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#22C55E' }}>£{parseFloat(selectedWorkProject.total_income || 0).toFixed(2)}</div>
@@ -4676,6 +4812,36 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     <span style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700' }}>Net Profit</span>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: parseFloat(selectedWorkProject.net_profit || 0) >= 0 ? '#22C55E' : '#EF4444' }}>£{parseFloat(selectedWorkProject.net_profit || 0).toFixed(2)}</div>
                   </div>
+                </div>
+
+                <h4 style={{ fontSize: '13px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                  Price Breakdown ({(selectedWorkProject.price_items || []).length} items)
+                </h4>
+                <div style={{ marginBottom: '28px' }}>
+                  {(selectedWorkProject.price_items || []).length === 0 ? (
+                    <div style={{ fontSize: '14px', color: '#94A3B8' }}>No priced items yet. Use "Update Price" to add them.</div>
+                  ) : (
+                    <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                      {selectedWorkProject.price_items.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '10px 14px', borderBottom: idx < selectedWorkProject.price_items.length - 1 ? '1px solid #F1F5F9' : 'none', fontSize: '13px' }}>
+                          <span style={{ color: '#334155' }}>{idx + 1}) {item.description}</span>
+                          <span style={{ fontWeight: '700', color: '#0F172A', whiteSpace: 'nowrap' }}>£{parseFloat(item.amount || 0).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(selectedWorkProject.price_history || []).length > 0 && (
+                    <details style={{ marginTop: '10px' }}>
+                      <summary style={{ fontSize: '12px', color: '#94A3B8', cursor: 'pointer', fontWeight: '700' }}>Price change history ({selectedWorkProject.price_history.length})</summary>
+                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {[...selectedWorkProject.price_history].reverse().map((h, idx) => (
+                          <div key={idx} style={{ fontSize: '12px', color: '#64748B', padding: '8px 10px', backgroundColor: '#FAFAFA', borderRadius: '8px' }}>
+                            <strong style={{ color: '#334155' }}>£{parseFloat(h.total || 0).toFixed(2)}</strong> — {h.note || 'Price updated'} · {h.updated_by || 'System'} · {h.updated_at ? new Date(h.updated_at).toLocaleString('en-GB') : ''}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
 
                 {selectedWorkProject.notes && (
@@ -6513,6 +6679,74 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                   style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}
                 >
                   {customerForm.processing ? 'Saving...' : 'Save Customer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Accept Quote -> Start Project Modal */}
+      {isAcceptQuoteModalOpen && acceptingQuote && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '560px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>Accept Quote &amp; Start Project</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94A3B8' }}>Enter the final price you negotiated with {acceptingQuote.name} by phone.</p>
+              </div>
+              <button type="button" onClick={() => setIsAcceptQuoteModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleAcceptQuoteSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Project Title *</label>
+                  <input type="text" required value={acceptQuoteForm.data.title} onChange={(e) => acceptQuoteForm.setData('title', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                  {acceptQuoteForm.errors.title && <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{acceptQuoteForm.errors.title}</div>}
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Start Date</label>
+                  <input type="date" value={acceptQuoteForm.data.started_at} onChange={(e) => acceptQuoteForm.setData('started_at', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                </div>
+                {renderPriceItemsFields(acceptQuoteForm)}
+              </div>
+              <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button type="button" onClick={() => setIsAcceptQuoteModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" disabled={acceptQuoteForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                  {acceptQuoteForm.processing ? 'Starting...' : 'Accept & Start Project'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Update Project Price Modal */}
+      {isProjectPriceModalOpen && pricingProject && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '560px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>Update Project Price</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94A3B8' }}>{pricingProject.title} — add, remove or edit priced work items as the job's scope changes.</p>
+              </div>
+              <button type="button" onClick={() => setIsProjectPriceModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleProjectPriceSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {renderPriceItemsFields(projectPriceForm)}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Reason for change (optional)</label>
+                  <input type="text" placeholder="e.g. Customer added extra kitchen painting" value={projectPriceForm.data.note} onChange={(e) => projectPriceForm.setData('note', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }} />
+                </div>
+              </div>
+              <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button type="button" onClick={() => setIsProjectPriceModalOpen(false)} style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" disabled={projectPriceForm.processing} style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: 'var(--shadow-primary)' }}>
+                  {projectPriceForm.processing ? 'Saving...' : 'Save Price'}
                 </button>
               </div>
             </form>
