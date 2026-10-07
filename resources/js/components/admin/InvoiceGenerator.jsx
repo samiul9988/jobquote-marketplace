@@ -148,9 +148,9 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
     });
   };
 
-  // Pad items to minimum of 5 rows
+  // Pad items to a minimum of 3 rows, just so a near-empty invoice doesn't look broken
   const paddedItems = [...invoiceData.items];
-  while (paddedItems.length < 5) {
+  while (paddedItems.length < 3) {
     paddedItems.push({ id: `empty-${paddedItems.length}`, description: '', amount: '' });
   }
 
@@ -269,57 +269,41 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
             width: '210mm',
             minHeight: '297mm',
             backgroundColor: '#FFF',
-            padding: '15mm',
+            padding: '12mm 14mm',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
             position: 'relative',
             color: '#1F295B',
             fontFamily: "'Inter', sans-serif"
           }}>
 
-          {/* TOP HEADER */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1F295B', paddingBottom: '15px', marginBottom: '15px' }}>
-            {/* Logo */}
-            <div style={{ flex: 'none', marginLeft: '-5px' }}>
+          {/* Top accent bar */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '6px', background: 'linear-gradient(90deg, #1F295B 0%, #3B82F6 55%, #93C5FD 100%)' }} />
+
+          {/* COMPACT HEADER */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               {settings?.logo ? (
-                <img src={settings.logo} style={{ width: '150px', height: 'auto', display: 'block' }} alt="Logo" />
+                <img src={settings.logo} style={{ width: '46px', height: '46px', objectFit: 'contain', display: 'block' }} alt="Logo" />
               ) : (
-                <div style={{ width: '140px', height: '140px', backgroundColor: '#F37021', borderRadius: '50%' }}></div>
+                <div style={{ width: '40px', height: '40px', backgroundColor: '#F37021', borderRadius: '50%', flexShrink: 0 }}></div>
               )}
-            </div>
-
-            {/* Company Info */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0 5px', marginTop: '10px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '15px' }}>
-                <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#1F295B', margin: '0 0 4px 0', whiteSpace: 'nowrap' }}>SK Home Solutions</h1>
-                <p style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '1px', margin: '0' }}>PAINTING & JOINERY</p>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', fontSize: '11px', fontWeight: '600' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Globe size={13} color="#1F295B"/> www.skhome-solutions.co.uk</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={13} color="#1F295B"/> +44 1792 923232</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Mail size={13} color="#1F295B"/> info@skhome-solutions.co.uk</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={13} color="#1F295B"/> Liverpool, United Kingdom</div>
+              <div>
+                <h1 style={{ fontSize: '19px', fontWeight: '900', color: '#1F295B', margin: 0, letterSpacing: '0.3px' }}>SK HOME SOLUTIONS LIMITED</h1>
+                <p style={{ fontSize: '10px', fontWeight: '600', fontStyle: 'italic', color: '#475569', margin: '2px 0 0 0' }}>Painting &amp; Decorating | Carpentry &amp; Joinery</p>
               </div>
             </div>
-
-            {/* Invoice Details */}
-            <div style={{ flex: 'none', textAlign: 'left', marginTop: '5px' }}>
-              <h2 style={{ fontSize: '38px', fontWeight: '900', color: '#1F295B', margin: '0 0 20px 0' }}>INVOICE</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '15px 0', fontSize: '12px', fontWeight: '600' }}>
-                <div>Invoice No.</div>
-                <div>{invoiceData.invoiceNumber}</div>
-                <div>Date</div>
-                <div>{formatDisplayDate(invoiceData.invoiceDate)}</div>
-                <div>Due Date</div>
-                <div>{formatDisplayDate(invoiceData.paymentDue)}</div>
-              </div>
+            <div style={{ width: '100%', borderBottom: '1px solid #CBD5E1', margin: '10px 0 8px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '12px', fontWeight: '700' }}>
+              <span>Invoice : {invoiceData.invoiceNumber}</span>
+              <span>Date : {formatDisplayDate(invoiceData.invoiceDate)}</span>
+              <span>Due : {formatDisplayDate(invoiceData.paymentDue)}</span>
             </div>
           </div>
 
           {/* CUSTOMER DETAILS */}
-          <div style={{ marginBottom: '15px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1F295B', marginBottom: '15px' }}>CUSTOMER DETAILS</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px 40px', fontSize: '13px', fontWeight: '700' }}>
+          <div style={{ marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: '800', color: '#1F295B', marginBottom: '8px' }}>CUSTOMER DETAILS</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 40px', fontSize: '13px', fontWeight: '700' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '80px 15px 1fr', alignItems: 'center' }}>
                 <span>Name</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.toName}</span>
               </div>
@@ -336,34 +320,34 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
           </div>
 
           {/* TABLE */}
-          <div style={{ border: '1px solid #8492A6', marginBottom: '15px' }}>
+          <div style={{ border: '1px solid #8492A6', marginBottom: '10px' }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 150px', borderBottom: '1px solid #8492A6', fontWeight: '800', fontSize: '13px', textAlign: 'center' }}>
-              <div style={{ padding: '12px', borderRight: '1px solid #8492A6' }}>NO.</div>
-              <div style={{ padding: '12px', borderRight: '1px solid #8492A6' }}>DESCRIPTION</div>
-              <div style={{ padding: '12px' }}>AMOUNT</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '50px 1fr 120px', borderBottom: '1px solid #8492A6', fontWeight: '800', fontSize: '12px', textAlign: 'center' }}>
+              <div style={{ padding: '7px' }}>NO.</div>
+              <div style={{ padding: '7px', borderLeft: '1px solid #8492A6', borderRight: '1px solid #8492A6' }}>DESCRIPTION</div>
+              <div style={{ padding: '7px' }}>AMOUNT</div>
             </div>
             {/* Rows */}
             {paddedItems.map((item, idx) => (
-              <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 150px', borderBottom: '1px solid #8492A6', fontSize: '13px' }}>
-                <div style={{ padding: '12px', borderRight: '1px solid #8492A6', textAlign: 'center', fontWeight: '700' }}>{item.description ? (idx + 1) : ''}</div>
-                <div style={{ padding: '12px', borderRight: '1px solid #8492A6' }}>{item.description}</div>
-                <div style={{ padding: '12px', textAlign: 'center', fontWeight: '600' }}>{item.amount ? `£${parseFloat(item.amount).toFixed(2)}` : ''}</div>
+              <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 120px', borderBottom: '1px solid #DDE2E8', fontSize: '12px', pageBreakInside: 'avoid' }}>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: '700' }}>{item.description ? (idx + 1) : ''}</div>
+                <div style={{ padding: '6px 10px', borderLeft: '1px solid #DDE2E8', borderRight: '1px solid #DDE2E8' }}>{item.description}</div>
+                <div style={{ padding: '6px', textAlign: 'center', fontWeight: '600' }}>{item.amount ? `£${parseFloat(item.amount).toFixed(2)}` : ''}</div>
               </div>
             ))}
             {/* Table Footer (Status & Totals) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px' }}>
-              <div style={{ padding: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #8492A6' }}>
-                <span style={{ fontSize: '32px', fontWeight: '800', color: '#1F295B' }}>{invoiceData.status}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', borderTop: '1px solid #8492A6', pageBreakInside: 'avoid' }}>
+              <div style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #8492A6' }}>
+                <span style={{ fontSize: '20px', fontWeight: '800', color: '#1F295B' }}>{invoiceData.status}</span>
               </div>
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 100px', padding: '10px 15px', borderBottom: '1px solid #8492A6', fontSize: '14px', fontWeight: '800' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 90px', padding: '6px 12px', borderBottom: '1px solid #DDE2E8', fontSize: '12px', fontWeight: '800' }}>
                   <span>TOTAL</span><span>:</span><span style={{ textAlign: 'right' }}>£{total.toFixed(2)}</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 100px', padding: '10px 15px', borderBottom: '1px solid #8492A6', fontSize: '14px', fontWeight: '800' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 90px', padding: '6px 12px', borderBottom: '1px solid #DDE2E8', fontSize: '12px', fontWeight: '800' }}>
                   <span>ADVANCE</span><span>:</span><span style={{ textAlign: 'right' }}>£{advance.toFixed(2)}</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 100px', padding: '10px 15px', fontSize: '14px', fontWeight: '800' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 90px', padding: '6px 12px', fontSize: '12px', fontWeight: '800' }}>
                   <span>DUE</span><span>:</span><span style={{ textAlign: 'right' }}>£{due.toFixed(2)}</span>
                 </div>
               </div>
@@ -371,44 +355,44 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
           </div>
 
           {/* FOOTER */}
-          <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1F295B', marginBottom: '15px' }}>HOW TO PAY THIS INVOICE</h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch' }}>
+          <h3 style={{ fontSize: '13px', fontWeight: '800', color: '#1F295B', marginBottom: '8px' }}>HOW TO PAY THIS INVOICE</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', pageBreakInside: 'avoid' }}>
             {/* Payment Details */}
-            <div style={{ flex: 1, paddingRight: '40px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', gap: '20px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
-                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Landmark size={20} />
+            <div style={{ flex: 1, paddingRight: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Landmark size={15} />
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: '700', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
                     <span>Account Name</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.accountName}</span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr', marginTop: '6px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', marginTop: '3px' }}>
                     <span>Account Number</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.accountNumber}</span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr', marginTop: '6px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', marginTop: '3px' }}>
                     <span>Sort Code</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.sortCode}</span>
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '20px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
-                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <CreditCard size={20} />
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <CreditCard size={15} />
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: '700', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
                     <span>Payment Method</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.paymentMethod}</span>
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <FileText size={20} />
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FileText size={15} />
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: '700', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
                     <span>Payment Term</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.paymentTerm}</span>
                   </div>
                 </div>
@@ -416,17 +400,25 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
             </div>
 
             {/* Thank You Box */}
-            <div style={{ flex: '0 0 260px', border: '1px solid #1F295B', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
-               <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '24px' }}>
-                 <Handshake size={42} color="#1F295B" style={{ flexShrink: 0 }} />
-                 <div style={{ fontSize: '12px', fontWeight: '500', borderLeft: '1px solid #1F295B', paddingLeft: '16px', lineHeight: '1.6' }}>
+            <div style={{ flex: '0 0 220px', border: '1px solid #1F295B', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
+               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                 <Handshake size={28} color="#1F295B" style={{ flexShrink: 0 }} />
+                 <div style={{ fontSize: '10px', fontWeight: '500', borderLeft: '1px solid #1F295B', paddingLeft: '10px', lineHeight: '1.4' }}>
                    If you have any questions about this invoice, please contact us.
                  </div>
                </div>
-               <div style={{ fontSize: '20px', fontWeight: '900', color: '#1F295B', width: '100%', textAlign: 'center' }}>
+               <div style={{ fontSize: '16px', fontWeight: '900', color: '#1F295B', width: '100%', textAlign: 'center' }}>
                  Thank you!
                </div>
             </div>
+          </div>
+
+          {/* Contact strip */}
+          <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', fontSize: '9px', fontWeight: '600', color: '#64748B' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Globe size={10} /> www.skhome-solutions.co.uk</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Mail size={10} /> info@skhome-solutions.co.uk</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Phone size={10} /> +44 1792 923232</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={10} /> Liverpool, United Kingdom</span>
           </div>
 
         </div>
