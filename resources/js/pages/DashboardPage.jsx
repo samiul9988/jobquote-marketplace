@@ -3,7 +3,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
   Hammer,
   PaintRoller,
-  PoundSterling,
+  RefreshCcw,
   LayoutDashboard,
   Home as HomeIcon,
   Info,
@@ -539,7 +539,16 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     if (confirm('Generate a new invoice from this project\'s current price list?')) {
       router.post(`/dashboard/work-projects/${id}/generate-invoice`, {}, {
         preserveScroll: true,
-        onSuccess: () => { setActiveTab('invoices'); setInvoiceView('list'); }
+        onSuccess: (page) => {
+          const newInvoiceId = page?.props?.flash?.generated_invoice_id;
+          setActiveTab('invoices');
+          if (newInvoiceId) {
+            setActiveInvoiceId(newInvoiceId);
+            setInvoiceView('edit');
+          } else {
+            setInvoiceView('list');
+          }
+        }
       });
     }
   };
@@ -4757,7 +4766,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                             <button onClick={() => setSelectedWorkProjectId(wp.id)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="View"><Eye size={14} /></button>
                             <button onClick={() => { setSelectedWorkProjectId(wp.id); setTimeout(() => window.print(), 250); }} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Print"><Printer size={14} /></button>
-                            <button onClick={() => openProjectPriceModal(wp)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#D97706', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Update Price"><PoundSterling size={14} /></button>
+                            <button onClick={() => openProjectPriceModal(wp)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#D97706', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Update Price"><RefreshCcw size={14} /></button>
                             <button onClick={() => openEditWorkProjectModal(wp)} style={{ padding: '6px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Edit"><Edit2 size={14} /></button>
                             <button onClick={() => deleteWorkProject(wp.id)} style={{ padding: '6px', backgroundColor: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex' }} title="Delete"><Trash2 size={14} /></button>
                           </div>
@@ -4788,7 +4797,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                       {selectedWorkProject.status}
                     </span>
                     <button onClick={() => generateInvoiceFromProject(selectedWorkProject.id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }} title="Generate Invoice"><FileCheck size={15} /> Generate Invoice</button>
-                    <button onClick={() => openProjectPriceModal(selectedWorkProject)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#D97706', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Update Price"><PoundSterling size={16} /></button>
+                    <button onClick={() => openProjectPriceModal(selectedWorkProject)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#D97706', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Update Price"><RefreshCcw size={16} /></button>
                     <button onClick={() => window.print()} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Print"><Printer size={16} /></button>
                     <button onClick={() => openEditWorkProjectModal(selectedWorkProject)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit2 size={16} /></button>
                     <button onClick={() => setSelectedWorkProjectId(null)} style={{ padding: '8px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Close"><X size={16} /></button>
