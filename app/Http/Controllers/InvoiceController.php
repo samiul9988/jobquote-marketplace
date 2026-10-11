@@ -30,7 +30,7 @@ class InvoiceController extends Controller
             'account_number' => $validated['account_number'] ?? null,
             'sort_code' => $validated['sort_code'] ?? null,
             'payment_method' => $validated['payment_method'] ?? 'BACS or FPS Payment Only',
-            'payment_term' => $validated['payment_term'] ?? '7 Days from Invoice Date',
+            'payment_term' => $validated['payment_term'] ?? 'Within 1 week',
             'payment_instructions_mode' => $validated['payment_instructions_mode'] ?? 'Bank Details',
             'payment_instructions_other' => $validated['payment_instructions_other'] ?? null,
             'notes' => $validated['notes'] ?? null,
@@ -153,7 +153,7 @@ class InvoiceController extends Controller
             'account_number' => null,
             'sort_code' => null,
             'payment_method' => 'BACS or FPS Payment Only',
-            'payment_term' => '7 Days from Invoice Date',
+            'payment_term' => 'Within 1 week',
         ]);
 
         $quote->update(['status' => 'Accepted']);
@@ -198,7 +198,7 @@ class InvoiceController extends Controller
             'account_number' => null,
             'sort_code' => null,
             'payment_method' => 'BACS or FPS Payment Only',
-            'payment_term' => '7 Days from Invoice Date',
+            'payment_term' => 'Within 1 week',
         ]);
 
         return back()->with('success', 'Invoice generated from project!')->with('generated_invoice_id', $invoice->id);

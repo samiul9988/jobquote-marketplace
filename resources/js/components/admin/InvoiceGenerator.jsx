@@ -17,6 +17,7 @@ const formatDisplayDate = (value) => {
 };
 
 const KNOWN_STATUSES = ['Unpaid', 'Paid', 'Partially Paid'];
+const PAYMENT_TERMS = ['Immediately', 'Within 1 Day', 'Within 2 Day', 'Within 3 Day', 'Within 1 week'];
 
 const inferPaymentMethod = (raw) => {
   const value = raw || '';
@@ -55,7 +56,7 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
         paymentMethodType: pm.type,
         cashReceivedBy: pm.cashReceivedBy,
         paymentMethodOtherText: pm.otherText,
-        paymentTerm: invoice.payment_term || '7 Days from Invoice Date',
+        paymentTerm: invoice.payment_term || 'Within 1 week',
         paymentInstructionsMode: invoice.payment_instructions_mode || 'Bank Details',
         paymentInstructionsOther: invoice.payment_instructions_other || ''
       };
@@ -82,13 +83,14 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
       paymentMethodType: 'Bank Transfer',
       cashReceivedBy: '',
       paymentMethodOtherText: '',
-      paymentTerm: '7 Days from Invoice Date',
+      paymentTerm: 'Within 1 week',
       paymentInstructionsMode: 'Bank Details',
       paymentInstructionsOther: ''
     };
   };
 
   const [invoiceData, setInvoiceData] = useState(buildInitialState);
+  const [printScale, setPrintScale] = useState(97);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
 
@@ -195,21 +197,31 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
 
       {/* LEFT SIDE: CONTROLS (Hidden on Print) */}
       <div className="invoice-controls no-print" style={{ flex: 1, backgroundColor: '#FFF', borderRadius: '16px', padding: '24px', overflowY: 'auto', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             {onBack && (
-              <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: '#64748B', fontWeight: '700', fontSize: '13px' }}>
+              <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: '#64748B', fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap' }}>
                 <ArrowLeft size={15} /> Back
               </button>
             )}
             <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', margin: 0 }}>{invoice ? 'Edit Invoice' : 'New Invoice'}</h2>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {savedMessage && <span style={{ color: '#22C55E', fontWeight: '700', fontSize: '13px' }}>{savedMessage}</span>}
-            <button onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '700', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+            <button onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'var(--color-secondary)', color: '#FFF', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '700', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, whiteSpace: 'nowrap' }}>
               <Save size={16} /> {saving ? 'Saving...' : 'Save Invoice'}
             </button>
-            <button onClick={handlePrint} style={{ backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', fontWeight: '700', whiteSpace: 'nowrap' }}>
+              Fit to page
+              <select value={printScale} onChange={e => setPrintScale(Number(e.target.value))} style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#FFF', fontSize: '12px', fontWeight: '700' }}>
+                <option value={100}>100%</option>
+                <option value={97}>97% (default)</option>
+                <option value={90}>90%</option>
+                <option value={75}>75%</option>
+                <option value={70}>70%</option>
+              </select>
+            </label>
+            <button onClick={handlePrint} style={{ backgroundColor: 'var(--color-primary)', color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Print / Save as PDF
             </button>
           </div>
@@ -312,12 +324,22 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
                 {invoiceData.paymentMethodType === 'Other' && (
                   <input type="text" placeholder="Payment method" value={invoiceData.paymentMethodOtherText} onChange={e => setInvoiceData({...invoiceData, paymentMethodOtherText: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
                 )}
-                <input type="text" placeholder="Payment Term" value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                <select value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#FFF' }}>
+                  {!PAYMENT_TERMS.includes(invoiceData.paymentTerm) && invoiceData.paymentTerm && (
+                    <option value={invoiceData.paymentTerm}>{invoiceData.paymentTerm}</option>
+                  )}
+                  {PAYMENT_TERMS.map(term => <option key={term} value={term}>{term}</option>)}
+                </select>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                 <textarea placeholder="Custom payment instructions" rows={4} value={invoiceData.paymentInstructionsOther} onChange={e => setInvoiceData({...invoiceData, paymentInstructionsOther: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
-                <input type="text" placeholder="Payment Term" value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                <select value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#FFF' }}>
+                  {!PAYMENT_TERMS.includes(invoiceData.paymentTerm) && invoiceData.paymentTerm && (
+                    <option value={invoiceData.paymentTerm}>{invoiceData.paymentTerm}</option>
+                  )}
+                  {PAYMENT_TERMS.map(term => <option key={term} value={term}>{term}</option>)}
+                </select>
               </div>
             )}
           </div>
@@ -521,12 +543,11 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
             top: 0 !important;
             margin: 0 !important;
             padding: 15mm !important;
-            width: 210mm !important;
-            height: 297mm !important;
+            width: ${210 / (printScale / 100)}mm !important;
+            min-height: 297mm !important;
             box-sizing: border-box !important;
             box-shadow: none !important;
-            transform: scale(0.97) !important;
-            transform-origin: top center !important;
+            zoom: ${printScale / 100} !important;
             page-break-after: avoid !important;
             page-break-before: avoid !important;
             -webkit-print-color-adjust: exact !important;
