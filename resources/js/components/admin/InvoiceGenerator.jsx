@@ -16,9 +16,26 @@ const formatDisplayDate = (value) => {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
+const KNOWN_STATUSES = ['Unpaid', 'Paid', 'Partially Paid'];
+
+const inferPaymentMethod = (raw) => {
+  const value = raw || '';
+  if (/cash/i.test(value)) {
+    const m = value.match(/received by\s*(.*)$/i);
+    return { type: 'Cash', cashReceivedBy: m ? m[1].trim() : '', otherText: '' };
+  }
+  if (!value || /bank|bacs|fps|transfer/i.test(value)) {
+    return { type: 'Bank Transfer', cashReceivedBy: '', otherText: '' };
+  }
+  return { type: 'Other', cashReceivedBy: '', otherText: value };
+};
+
 export default function InvoiceGenerator({ invoice = null, customers = [], settings, onBack }) {
   const buildInitialState = () => {
     if (invoice) {
+      const rawStatus = invoice.status || 'Unpaid';
+      const statusIsOther = !KNOWN_STATUSES.includes(rawStatus);
+      const pm = inferPaymentMethod(invoice.payment_method);
       return {
         customerId: invoice.customer_id || invoice.customer?.id || '',
         toName: invoice.customer?.name || '',
@@ -29,13 +46,18 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
         invoiceDate: toInputDate(invoice.invoice_date),
         paymentDue: toInputDate(invoice.due_date),
         items: (invoice.items || []).map((item, idx) => ({ id: item.id || idx + 1, description: item.description || '', amount: item.amount ?? 0 })),
-        status: invoice.status || 'Unpaid',
+        status: statusIsOther ? 'Other' : rawStatus,
+        statusOther: statusIsOther ? rawStatus : '',
         advance: invoice.advance || 0,
         accountName: invoice.account_name || 'SK Home Solutions',
         accountNumber: invoice.account_number || '',
         sortCode: invoice.sort_code || '',
-        paymentMethod: invoice.payment_method || 'BACS or FPS Payment Only',
-        paymentTerm: invoice.payment_term || '7 Days from Invoice Date'
+        paymentMethodType: pm.type,
+        cashReceivedBy: pm.cashReceivedBy,
+        paymentMethodOtherText: pm.otherText,
+        paymentTerm: invoice.payment_term || '7 Days from Invoice Date',
+        paymentInstructionsMode: invoice.payment_instructions_mode || 'Bank Details',
+        paymentInstructionsOther: invoice.payment_instructions_other || ''
       };
     }
     const today = new Date();
@@ -52,12 +74,17 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
       paymentDue: due.toISOString().slice(0, 10),
       items: [{ id: 1, description: '', amount: 0 }],
       status: 'Unpaid',
+      statusOther: '',
       advance: 0,
       accountName: 'SK Home Solutions',
       accountNumber: '',
       sortCode: '',
-      paymentMethod: 'BACS or FPS Payment Only',
-      paymentTerm: '7 Days from Invoice Date'
+      paymentMethodType: 'Bank Transfer',
+      cashReceivedBy: '',
+      paymentMethodOtherText: '',
+      paymentTerm: '7 Days from Invoice Date',
+      paymentInstructionsMode: 'Bank Details',
+      paymentInstructionsOther: ''
     };
   };
 
@@ -107,6 +134,13 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
   const advance = parseFloat(invoiceData.advance || 0);
   const due = total - advance;
 
+  const resolvedStatus = invoiceData.status === 'Other' ? (invoiceData.statusOther || 'Other') : invoiceData.status;
+  const resolvedPaymentMethod = invoiceData.paymentMethodType === 'Bank Transfer'
+    ? 'Bank Transfer'
+    : invoiceData.paymentMethodType === 'Cash'
+      ? ('Cash' + (invoiceData.cashReceivedBy ? ` — Received by ${invoiceData.cashReceivedBy}` : ''))
+      : (invoiceData.paymentMethodOtherText || 'Other');
+
   const handleSave = () => {
     if (!invoiceData.customerId) {
       alert('Please link this invoice to a customer before saving.');
@@ -124,12 +158,14 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
       advance: parseFloat(invoiceData.advance || 0),
       invoice_date: invoiceData.invoiceDate,
       due_date: invoiceData.paymentDue,
-      status: invoiceData.status || 'Unpaid',
+      status: resolvedStatus || 'Unpaid',
       account_name: invoiceData.accountName,
       account_number: invoiceData.accountNumber,
       sort_code: invoiceData.sortCode,
-      payment_method: invoiceData.paymentMethod,
-      payment_term: invoiceData.paymentTerm
+      payment_method: resolvedPaymentMethod,
+      payment_term: invoiceData.paymentTerm,
+      payment_instructions_mode: invoiceData.paymentInstructionsMode,
+      payment_instructions_other: invoiceData.paymentInstructionsMode === 'Other' ? invoiceData.paymentInstructionsOther : null
     };
 
     setSaving(true);
@@ -225,7 +261,11 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
                 <option value="Unpaid">Unpaid</option>
                 <option value="Paid">Paid</option>
                 <option value="Partially Paid">Partially Paid</option>
+                <option value="Other">Other</option>
               </select>
+              {invoiceData.status === 'Other' && (
+                <input type="text" placeholder="Enter custom status" value={invoiceData.statusOther} onChange={e => setInvoiceData({...invoiceData, statusOther: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', marginTop: '8px' }} />
+              )}
             </div>
           </div>
 
@@ -249,15 +289,37 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
 
           <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
             <h3 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>Payment Instructions</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-              <input type="text" placeholder="Account Name" value={invoiceData.accountName} onChange={e => setInvoiceData({...invoiceData, accountName: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                 <input type="text" placeholder="Account Number" value={invoiceData.accountNumber} onChange={e => setInvoiceData({...invoiceData, accountNumber: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
-                 <input type="text" placeholder="Sort Code" value={invoiceData.sortCode} onChange={e => setInvoiceData({...invoiceData, sortCode: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
-              </div>
-              <input type="text" placeholder="Payment Method" value={invoiceData.paymentMethod} onChange={e => setInvoiceData({...invoiceData, paymentMethod: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
-              <input type="text" placeholder="Payment Term" value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <button type="button" onClick={() => setInvoiceData({...invoiceData, paymentInstructionsMode: 'Bank Details'})} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #CBD5E1', cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: invoiceData.paymentInstructionsMode === 'Bank Details' ? 'var(--color-primary)' : '#FFF', color: invoiceData.paymentInstructionsMode === 'Bank Details' ? '#FFF' : '#334155' }}>Bank Details</button>
+              <button type="button" onClick={() => setInvoiceData({...invoiceData, paymentInstructionsMode: 'Other'})} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #CBD5E1', cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: invoiceData.paymentInstructionsMode === 'Other' ? 'var(--color-primary)' : '#FFF', color: invoiceData.paymentInstructionsMode === 'Other' ? '#FFF' : '#334155' }}>Other</button>
             </div>
+
+            {invoiceData.paymentInstructionsMode === 'Bank Details' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                <input type="text" placeholder="Account Name" value={invoiceData.accountName} onChange={e => setInvoiceData({...invoiceData, accountName: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                   <input type="text" placeholder="Account Number" value={invoiceData.accountNumber} onChange={e => setInvoiceData({...invoiceData, accountNumber: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                   <input type="text" placeholder="Sort Code" value={invoiceData.sortCode} onChange={e => setInvoiceData({...invoiceData, sortCode: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                </div>
+                <select value={invoiceData.paymentMethodType} onChange={e => setInvoiceData({...invoiceData, paymentMethodType: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', backgroundColor: '#FFF' }}>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Other">Other</option>
+                </select>
+                {invoiceData.paymentMethodType === 'Cash' && (
+                  <input type="text" placeholder="Received by (name / detail)" value={invoiceData.cashReceivedBy} onChange={e => setInvoiceData({...invoiceData, cashReceivedBy: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                )}
+                {invoiceData.paymentMethodType === 'Other' && (
+                  <input type="text" placeholder="Payment method" value={invoiceData.paymentMethodOtherText} onChange={e => setInvoiceData({...invoiceData, paymentMethodOtherText: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+                )}
+                <input type="text" placeholder="Payment Term" value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                <textarea placeholder="Custom payment instructions" rows={4} value={invoiceData.paymentInstructionsOther} onChange={e => setInvoiceData({...invoiceData, paymentInstructionsOther: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+                <input type="text" placeholder="Payment Term" value={invoiceData.paymentTerm} onChange={e => setInvoiceData({...invoiceData, paymentTerm: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', outline: 'none' }} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -338,7 +400,7 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
             {/* Table Footer (Status & Totals) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', borderTop: '1px solid #8492A6', pageBreakInside: 'avoid' }}>
               <div style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #8492A6' }}>
-                <span style={{ fontSize: '20px', fontWeight: '800', color: '#1F295B' }}>{invoiceData.status}</span>
+                <span style={{ fontSize: '20px', fontWeight: '800', color: '#1F295B' }}>{resolvedStatus}</span>
               </div>
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 15px 90px', padding: '6px 12px', borderBottom: '1px solid #DDE2E8', fontSize: '12px', fontWeight: '800' }}>
@@ -359,33 +421,46 @@ export default function InvoiceGenerator({ invoice = null, customers = [], setti
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', pageBreakInside: 'avoid' }}>
             {/* Payment Details */}
             <div style={{ flex: 1, paddingRight: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
-                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Landmark size={15} />
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
-                    <span>Account Name</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.accountName}</span>
+              {invoiceData.paymentInstructionsMode === 'Bank Details' ? (
+                <>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                    <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Landmark size={15} />
+                    </div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
+                        <span>Account Name</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.accountName}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', marginTop: '3px' }}>
+                        <span>Account Number</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.accountNumber}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', marginTop: '3px' }}>
+                        <span>Sort Code</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.sortCode}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', marginTop: '3px' }}>
-                    <span>Account Number</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.accountNumber}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', marginTop: '3px' }}>
-                    <span>Sort Code</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.sortCode}</span>
-                  </div>
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
-                <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <CreditCard size={15} />
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
-                    <span>Payment Method</span><span>:</span><span style={{ fontWeight: '500' }}>{invoiceData.paymentMethod}</span>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                    <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <CreditCard size={15} />
+                    </div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', flex: 1 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr' }}>
+                        <span>Payment Method</span><span>:</span><span style={{ fontWeight: '500' }}>{resolvedPaymentMethod}</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                  <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <CreditCard size={15} />
+                  </div>
+                  <div style={{ fontSize: '11px', fontWeight: '500', flex: 1, whiteSpace: 'pre-wrap' }}>
+                    {invoiceData.paymentInstructionsOther}
                   </div>
                 </div>
-              </div>
+              )}
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <div style={{ backgroundColor: '#1F295B', color: '#FFF', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

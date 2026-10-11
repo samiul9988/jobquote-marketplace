@@ -31,6 +31,8 @@ class InvoiceController extends Controller
             'sort_code' => $validated['sort_code'] ?? null,
             'payment_method' => $validated['payment_method'] ?? 'BACS or FPS Payment Only',
             'payment_term' => $validated['payment_term'] ?? '7 Days from Invoice Date',
+            'payment_instructions_mode' => $validated['payment_instructions_mode'] ?? 'Bank Details',
+            'payment_instructions_other' => $validated['payment_instructions_other'] ?? null,
             'notes' => $validated['notes'] ?? null,
         ]);
 
@@ -59,6 +61,8 @@ class InvoiceController extends Controller
             'sort_code' => $validated['sort_code'] ?? $invoice->sort_code,
             'payment_method' => $validated['payment_method'] ?? $invoice->payment_method,
             'payment_term' => $validated['payment_term'] ?? $invoice->payment_term,
+            'payment_instructions_mode' => $validated['payment_instructions_mode'] ?? $invoice->payment_instructions_mode,
+            'payment_instructions_other' => $validated['payment_instructions_other'] ?? $invoice->payment_instructions_other,
             'notes' => $validated['notes'] ?? $invoice->notes,
         ]);
 
@@ -211,12 +215,14 @@ class InvoiceController extends Controller
             'advance' => 'nullable|numeric',
             'invoice_date' => 'required|date',
             'due_date' => 'required|date',
-            'status' => 'nullable|in:Unpaid,Paid,Partially Paid',
+            'status' => 'nullable|string|max:255',
             'account_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:255',
             'sort_code' => 'nullable|string|max:255',
             'payment_method' => 'nullable|string|max:255',
             'payment_term' => 'nullable|string|max:255',
+            'payment_instructions_mode' => 'nullable|string|max:255',
+            'payment_instructions_other' => 'nullable|string',
             'notes' => 'nullable|string',
         ]);
     }
