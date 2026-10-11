@@ -94,13 +94,13 @@ const GEN = {
     'Other'] },
   budget: {
     title: "What's your estimated budget?",
-    note: "Don't worry, you're not committing to anything here but bear in mind that more tradespeople are likely to give you a quote if you give a reasonable budget for the job.",
+    note: "Please do not worry, you're not committing to anything here but bear in mind that we are more likely to give you a quote if you give a reasonable budget for the job.",
     opts: ['Under £250', 'Under £500', 'Under £1,000', 'Under £2,000', 'Under £4,000', 'Under £8,000', 'Under £15,000', 'Under £30,000', 'Over £30,000', 'Not Sure'],
   },
   timeline: {
     title: 'When would you like the work to start?',
     note: 'Please let us know when you plan on getting the job done. If it\'s not urgent then just select "flexible".',
-    opts: ['Asap', 'Within 2 days', 'Within 2 weeks', 'Within 2 months', 'Flexible'],
+    opts: ['Asap', 'Within 3 days', 'Within 2 weeks', 'Within 2 months', 'Flexible', 'Others'],
   },
 };
 
@@ -179,8 +179,17 @@ export default function FindTradespersonPage() {
   const [nearbyCount] = useState(() => 150 + Math.floor(Math.random() * 150));
 
   // Contact step state (no login required)
-  const [guestContact, setGuestContact] = useState({ name: '', phone: '', email: '', address: '', postcode: '' });
+  const [guestContact, setGuestContact] = useState({ name: '', phone: '', email: '', postcode: '', addressLine1: '', addressLine2: '', billingPostcode: '', billingAddressLine1: '', billingAddressLine2: '' });
+  const [billingSameAsAddress, setBillingSameAsAddress] = useState(true);
+  const [manualAddressOpen, setManualAddressOpen] = useState(false);
+  const [billingManualAddressOpen, setBillingManualAddressOpen] = useState(false);
   const [guestErrors, setGuestErrors] = useState([]);
+  const [postcodeSuggestions, setPostcodeSuggestions] = useState([]);
+  const [showPostcodeSuggestions, setShowPostcodeSuggestions] = useState(false);
+  const postcodeDebounceRef = useRef();
+  const [billingPostcodeSuggestions, setBillingPostcodeSuggestions] = useState([]);
+  const [showBillingPostcodeSuggestions, setShowBillingPostcodeSuggestions] = useState(false);
+  const billingPostcodeDebounceRef = useRef();
 
   const fileRef = useRef();
   const endRef = useRef();
@@ -236,7 +245,7 @@ export default function FindTradespersonPage() {
     }
     if (a.outInvolve === 'Decking') steps.push('deckWork');
   }
-  steps.push('desc', 'location', 'budget', 'timeline', 'contact', 'photos');
+  steps.push('desc', /* 'location', */ 'budget', 'timeline', 'contact', 'photos');
 
   useEffect(() => {
     if (stage > 0 && endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -271,6 +280,50 @@ export default function FindTradespersonPage() {
     e.target.value = '';
   };
 
+  const handlePostcodeChange = (value) => {
+    const upper = value.toUpperCase();
+    setGuestContact({ ...guestContact, postcode: upper });
+    clearTimeout(postcodeDebounceRef.current);
+    if (upper.trim().length < 2) {
+      setPostcodeSuggestions([]);
+      setShowPostcodeSuggestions(false);
+      return;
+    }
+    postcodeDebounceRef.current = setTimeout(() => {
+      fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(upper.trim())}/autocomplete`)
+        .then((res) => res.json())
+        .then((data) => {
+          setPostcodeSuggestions(data && data.result ? data.result : []);
+          setShowPostcodeSuggestions(true);
+        })
+        .catch(() => {
+          setPostcodeSuggestions([]);
+        });
+    }, 300);
+  };
+
+  const handleBillingPostcodeChange = (value) => {
+    const upper = value.toUpperCase();
+    setGuestContact({ ...guestContact, billingPostcode: upper });
+    clearTimeout(billingPostcodeDebounceRef.current);
+    if (upper.trim().length < 2) {
+      setBillingPostcodeSuggestions([]);
+      setShowBillingPostcodeSuggestions(false);
+      return;
+    }
+    billingPostcodeDebounceRef.current = setTimeout(() => {
+      fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(upper.trim())}/autocomplete`)
+        .then((res) => res.json())
+        .then((data) => {
+          setBillingPostcodeSuggestions(data && data.result ? data.result : []);
+          setShowBillingPostcodeSuggestions(true);
+        })
+        .catch(() => {
+          setBillingPostcodeSuggestions([]);
+        });
+    }, 300);
+  };
+
   const validateGuest = () => {
     const msgs = [];
     if (!guestContact.name.trim()) msgs.push('Full name is required.');
@@ -281,6 +334,11 @@ export default function FindTradespersonPage() {
       msgs.push('Please enter a valid email address.');
     }
     if (!guestContact.postcode.trim()) msgs.push('Post code is required.');
+    if (manualAddressOpen && !guestContact.addressLine1.trim()) msgs.push('Address 1 is required.');
+    if (!billingSameAsAddress) {
+      if (!guestContact.billingPostcode.trim()) msgs.push('Billing post code is required.');
+      if (billingManualAddressOpen && !guestContact.billingAddressLine1.trim()) msgs.push('Billing address 1 is required.');
+    }
     setGuestErrors(msgs);
     return msgs.length === 0;
   };
@@ -314,16 +372,20 @@ export default function FindTradespersonPage() {
     if (a.floorSupply) answers['Materials the tradesperson should supply'] = a.floorSupply;
     if (a.floorRemove) answers['Old flooring needs removing first?'] = a.floorRemove;
     if (a.floorOld) answers['Type of flooring being removed'] = a.floorOld;
-    steps.forEach((k) => { if (GEN[k] && a[k] !== undefined) answers[GEN[k].title] = a[k]; });
+    steps.forEach((k) => { if (GEN[k] && a[k] !== undefined) answers[GEN[k].title] = k === 'timeline' && a.timeline === 'Others' ? a.timelineOther : a[k]; });
     const fd = new FormData();
     fd.append('trade', cfg.label);
     fd.append('answers', JSON.stringify(answers));
     fd.append('description', desc);
+    const fullAddress = [guestContact.addressLine1, guestContact.addressLine2].filter(Boolean).join(', ');
+    const fullBillingAddress = [guestContact.billingAddressLine1, guestContact.billingAddressLine2].filter(Boolean).join(', ');
     fd.append('name', guestContact.name);
     fd.append('phone', guestContact.phone);
     fd.append('email', guestContact.email);
-    fd.append('address', guestContact.address);
+    fd.append('address', fullAddress);
     fd.append('postcode', guestContact.postcode || location);
+    fd.append('billingAddress', billingSameAsAddress ? fullAddress : fullBillingAddress);
+    fd.append('billingPostcode', billingSameAsAddress ? guestContact.postcode : guestContact.billingPostcode);
     photos.forEach((p) => fd.append('photos[]', p));
     router.post('/find-tradesperson', fd, {
       forceFormData: true,
@@ -566,14 +628,15 @@ export default function FindTradespersonPage() {
             {show('desc') && (
               <Block title={a.kind === 'Door Fitting' ? 'Tell us more about your door fitting job' : 'Tell us about your job'}>
                 <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px' }}>
-                  Please give a description of the job you want doing, including any additional information, and any materials you need the tradesperson to supply.
+                  {/* Please give a description of the job you want doing, including any additional information, and any materials you need the tradesperson to supply. */}
+                  Please give a description of the job, including any additional information and any additional materials you want us to provide.
                 </p>
                 <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={6} style={{ ...input, resize: 'vertical' }} />
                 <Btn onClick={() => next('desc')}>Continue</Btn>
               </Block>
             )}
 
-            {show('location') && (
+            {/* {show('location') && (
               <Block title="Job Location">
                 <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px' }}>
                   Please enter the postcode for the job so that we can match up local relevant tradespeople.
@@ -581,13 +644,13 @@ export default function FindTradespersonPage() {
                 <input type="text" placeholder="SW1A 1AA" value={location} onChange={(e) => setLocation(e.target.value.toUpperCase())} style={input} />
                 <Btn disabled={!location.trim()} onClick={() => next('location')}>Continue</Btn>
               </Block>
-            )}
+            )} */}
 
             {show('budget') && (
               <>
-                <p style={{ fontSize: 14, color: '#3B4257', fontWeight: 600, margin: '0 0 16px' }}>
+                {/* <p style={{ fontSize: 14, color: '#3B4257', fontWeight: 600, margin: '0 0 16px' }}>
                   Great news! We've found {nearbyCount} {pluralTrade(cfg.label)} near you. We'll contact the best of these tradesmen on your behalf. No obligations. You don't have to hire anyone.
-                </p>
+                </p> */}
                 <Block title={GEN.budget.title} note={GEN.budget.note}>
                   <Options options={GEN.budget.opts} value={a.budget} onChange={(v) => set('budget', v)} />
                   <Btn disabled={!a.budget} onClick={() => next('budget')}>Continue</Btn>
@@ -598,7 +661,16 @@ export default function FindTradespersonPage() {
             {show('timeline') && (
               <Block title={GEN.timeline.title} note={GEN.timeline.note}>
                 <Options options={GEN.timeline.opts} value={a.timeline} onChange={(v) => set('timeline', v)} />
-                <Btn disabled={!a.timeline} onClick={() => next('timeline')}>Continue</Btn>
+                {a.timeline === 'Others' && (
+                  <input
+                    type="text"
+                    placeholder="Please tell us when you'd like the work to start"
+                    value={a.timelineOther || ''}
+                    onChange={(e) => setA({ ...a, timelineOther: e.target.value })}
+                    style={{ ...input, marginTop: 10 }}
+                  />
+                )}
+                <Btn disabled={!a.timeline || (a.timeline === 'Others' && !(a.timelineOther || '').trim())} onClick={() => next('timeline')}>Continue</Btn>
               </Block>
             )}
 
@@ -613,10 +685,112 @@ export default function FindTradespersonPage() {
                 <input type="tel" value={guestContact.phone} onChange={(e) => setGuestContact({ ...guestContact, phone: e.target.value })} style={input} />
                 <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Email Address:</label>
                 <input type="email" value={guestContact.email} onChange={(e) => setGuestContact({ ...guestContact, email: e.target.value })} style={input} />
-                <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Address:</label>
-                <input type="text" value={guestContact.address} onChange={(e) => setGuestContact({ ...guestContact, address: e.target.value })} style={input} />
                 <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Post Code:</label>
-                <input type="text" placeholder="SW1A 1AA" value={guestContact.postcode} onChange={(e) => setGuestContact({ ...guestContact, postcode: e.target.value.toUpperCase() })} style={input} />
+                <div style={{ display: 'flex', gap: 10, marginBottom: 4, position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="SW1A 1AA"
+                    value={guestContact.postcode}
+                    onChange={(e) => handlePostcodeChange(e.target.value)}
+                    onFocus={() => { if (postcodeSuggestions.length) setShowPostcodeSuggestions(true); }}
+                    onBlur={() => setTimeout(() => setShowPostcodeSuggestions(false), 150)}
+                    autoComplete="off"
+                    style={{ ...input, marginBottom: 0, flex: 1 }}
+                  />
+                  <button type="button" onClick={() => setShowPostcodeSuggestions(postcodeSuggestions.length > 0)} style={{ padding: '0 20px', background: BLUE, color: '#fff', border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap' }}>Find address</button>
+                  {showPostcodeSuggestions && postcodeSuggestions.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 118, marginTop: 4, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 6, boxShadow: '0 8px 20px rgba(0,0,0,0.12)', zIndex: 20, maxHeight: 200, overflowY: 'auto' }}>
+                      {postcodeSuggestions.map((s) => (
+                        <div
+                          key={s}
+                          onMouseDown={() => {
+                            setGuestContact({ ...guestContact, postcode: s });
+                            setShowPostcodeSuggestions(false);
+                          }}
+                          style={{ padding: '10px 12px', fontSize: 14, cursor: 'pointer', borderBottom: '1px solid #F1F5F9' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; }}
+                        >
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {!manualAddressOpen && (
+                  <button type="button" onClick={() => setManualAddressOpen(true)} style={{ background: 'none', border: 'none', padding: 0, margin: '0 0 14px', color: BLUE, fontSize: 13, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>
+                    Not listed? Enter manually
+                  </button>
+                )}
+
+                {manualAddressOpen && (
+                  <>
+                    <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Address 1:</label>
+                    <input type="text" value={guestContact.addressLine1} onChange={(e) => setGuestContact({ ...guestContact, addressLine1: e.target.value })} style={input} />
+                    <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Address 2:</label>
+                    <input type="text" value={guestContact.addressLine2} onChange={(e) => setGuestContact({ ...guestContact, addressLine2: e.target.value })} style={input} />
+                  </>
+                )}
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#3B4257', fontWeight: 600, margin: '8px 0 14px' }}>
+                  <input
+                    type="checkbox"
+                    checked={billingSameAsAddress}
+                    onChange={(e) => setBillingSameAsAddress(e.target.checked)}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  Billing address same as above
+                </label>
+
+                {!billingSameAsAddress && (
+                  <>
+                    <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Billing Post Code:</label>
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 4, position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="SW1A 1AA"
+                        value={guestContact.billingPostcode}
+                        onChange={(e) => handleBillingPostcodeChange(e.target.value)}
+                        onFocus={() => { if (billingPostcodeSuggestions.length) setShowBillingPostcodeSuggestions(true); }}
+                        onBlur={() => setTimeout(() => setShowBillingPostcodeSuggestions(false), 150)}
+                        autoComplete="off"
+                        style={{ ...input, marginBottom: 0, flex: 1 }}
+                      />
+                      <button type="button" onClick={() => setShowBillingPostcodeSuggestions(billingPostcodeSuggestions.length > 0)} style={{ padding: '0 20px', background: BLUE, color: '#fff', border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap' }}>Find address</button>
+                      {showBillingPostcodeSuggestions && billingPostcodeSuggestions.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 118, marginTop: 4, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 6, boxShadow: '0 8px 20px rgba(0,0,0,0.12)', zIndex: 20, maxHeight: 200, overflowY: 'auto' }}>
+                          {billingPostcodeSuggestions.map((s) => (
+                            <div
+                              key={s}
+                              onMouseDown={() => {
+                                setGuestContact({ ...guestContact, billingPostcode: s });
+                                setShowBillingPostcodeSuggestions(false);
+                              }}
+                              style={{ padding: '10px 12px', fontSize: 14, cursor: 'pointer', borderBottom: '1px solid #F1F5F9' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; }}
+                            >
+                              {s}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {!billingManualAddressOpen && (
+                      <button type="button" onClick={() => setBillingManualAddressOpen(true)} style={{ background: 'none', border: 'none', padding: 0, margin: '0 0 14px', color: BLUE, fontSize: 13, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>
+                        Not listed? Enter manually
+                      </button>
+                    )}
+                    {billingManualAddressOpen && (
+                      <>
+                        <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Billing Address 1:</label>
+                        <input type="text" value={guestContact.billingAddressLine1} onChange={(e) => setGuestContact({ ...guestContact, billingAddressLine1: e.target.value })} style={input} />
+                        <label style={{ display: 'block', fontSize: 13, color: '#3B4257', fontWeight: 600, marginBottom: 4 }}>Billing Address 2:</label>
+                        <input type="text" value={guestContact.billingAddressLine2} onChange={(e) => setGuestContact({ ...guestContact, billingAddressLine2: e.target.value })} style={input} />
+                      </>
+                    )}
+                  </>
+                )}
                 {guestErrors.length > 0 && (
                   <div style={{ marginBottom: 10 }}>
                     {guestErrors.map((m, i) => <p key={i} style={{ color: '#DC2626', fontSize: 13, margin: '4px 0' }}>{m}</p>)}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useForm , usePage} from '@inertiajs/react';
+import React, { useEffect } from 'react';
+import { usePage, router } from '@inertiajs/react';
 import {
   Phone,
   MessageCircle,
@@ -10,10 +10,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   Sparkles,
-  ArrowRight,
-  HelpCircle,
-  Calendar,
-  Home
+  Hammer,
+  PaintRoller
 } from 'lucide-react';
 import PageBanner from '../components/common/PageBanner';
 import SectionHeader from '../components/common/SectionHeader';
@@ -25,40 +23,10 @@ import { siteInfo, serviceAreas } from '../data/siteData';
 
 export default function ContactPage({ onOpenQuote }) {
   const { settings = {} } = usePage().props;
-  const form = useForm({
-    name: '',
-    phone: '',
-    email: '',
-    postcode: '',
-    service: 'Interior Painting & Decorating',
-    timeline: 'Flexible',
-    message: ''
-  });
-
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    form.post('/contact', {
-      onSuccess: () => {
-        setIsSubmitting(false);
-        setIsSubmitted(true);
-        setTimeout(() => {
-          setIsSubmitted(false);
-          form.reset();
-        }, 4000);
-      },
-      onError: () => {
-        setIsSubmitting(false);
-      }
-    });
-  };
 
   return (
     <div className="contact-page-wrapper">
@@ -338,265 +306,47 @@ export default function ContactPage({ onOpenQuote }) {
                 }}
                 className="contact-form-box"
               >
-                {isSubmitted ? (
-                  <div style={{ textAlign: 'center', padding: '40px 10px' }}>
-                    <div
-                      style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--color-primary-light)',
-                        color: 'var(--color-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 20px auto'
-                      }}
-                    >
-                      <CheckCircle2 size={36} />
-                    </div>
-                    <h3 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--color-primary)', marginBottom: '8px' }}>
-                      Message Received!
-                    </h3>
-                    <p style={{ fontSize: '15px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
-                      Thank you, <strong>{form.data.name}</strong>. We have received your inquiry for <strong>{form.data.service}</strong>. A member of our Liverpool team will contact you within 24 hours with project advice and quotation details.
-                    </p>
+                <div>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: 'var(--color-secondary-light)',
+                      color: 'var(--color-secondary)',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      padding: '4px 12px',
+                      borderRadius: 'var(--radius-full)',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    <span>Free Quotation</span>
                   </div>
-                ) : (
-                  <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div>
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          backgroundColor: 'var(--color-secondary-light)',
-                          color: 'var(--color-secondary)',
-                          fontSize: '12px',
-                          fontWeight: '800',
-                          padding: '4px 12px',
-                          borderRadius: 'var(--radius-full)',
-                          marginBottom: '10px'
-                        }}
-                      >
-                        <Sparkles size={14} />
-                        <span>Free Quotation</span>
-                      </div>
-                      <h3 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-primary)', marginBottom: '6px' }}>
-                        Request a Free Project Quote
-                      </h3>
-                      <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', margin: 0 }}>
-                        Tell us about your home improvement project and we’ll get back to you promptly.
-                      </p>
-                    </div>
-
-                    {/* Row 1: Name & Phone */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="contact-form-row">
-                      <div>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                          Your Full Name *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Sarah Jenkins"
-                          value={form.data.name}
-                          onChange={(e) => form.setData('name', e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            fontSize: '14px',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                          UK Phone Number *
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          placeholder="+44 7912 345678"
-                          value={form.data.phone}
-                          onChange={(e) => form.setData('phone', e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            fontSize: '14px',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 2: Email & Postcode */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="contact-form-row">
-                      <div>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                          Email Address *
-                        </label>
-                        <input
-                          type="email"
-                          required
-                          placeholder="sarah@example.co.uk"
-                          value={form.data.email}
-                          onChange={(e) => form.setData('email', e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            fontSize: '14px',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                          Property Area / Postcode *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Crosby, L23"
-                          value={form.data.postcode}
-                          onChange={(e) => form.setData('postcode', e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            fontSize: '14px',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 3: Service & Timeline */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="contact-form-row">
-                      <div>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                          Service Required *
-                        </label>
-                        <select
-                          value={form.data.service}
-                          onChange={(e) => form.setData('service', e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            fontSize: '14px',
-                            outline: 'none',
-                            backgroundColor: '#FFFFFF'
-                          }}
-                        >
-                          <option value="Interior Painting & Decorating">Interior Painting & Decorating</option>
-                          <option value="Exterior Painting & Masonry">Exterior Painting & Masonry</option>
-                          <option value="Solid Oak Door Fitting & Joinery">Solid Oak Door Fitting & Joinery</option>
-                          <option value="Bespoke Built-In Alcove Shelving">Bespoke Built-In Alcove Shelving</option>
-                          <option value="Plastering & Skimming">Plastering & Skimming</option>
-                          <option value="Full Property Refurbishment">Full Property Refurbishment</option>
-                          <option value="Other Trade Work">Other Trade Work</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                          Preferred Timeline
-                        </label>
-                        <select
-                          value={form.data.timeline}
-                          onChange={(e) => form.setData('timeline', e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            fontSize: '14px',
-                            outline: 'none',
-                            backgroundColor: '#FFFFFF'
-                          }}
-                        >
-                          <option value="Urgent (Within 1–2 Weeks)">Urgent (Within 1–2 Weeks)</option>
-                          <option value="Within 2–4 Weeks">Within 2–4 Weeks</option>
-                          <option value="Next Month">Next Month</option>
-                          <option value="Flexible / Planning Phase">Flexible / Planning Phase</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Row 4: Message */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                        Project Details & Room Description *
-                      </label>
-                      <textarea
-                        required
-                        rows="4"
-                        placeholder="Please describe the size of the room, number of doors, wall conditions, or special finish preferences..."
-                        value={form.data.message}
-                        onChange={(e) => form.setData('message', e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--color-border)',
-                          fontSize: '14px',
-                          outline: 'none',
-                          resize: 'vertical'
-                        }}
-                      />
-                    </div>
-
-                    {/* Submit Button */}
-                    <div>
+                  <h3 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-primary)', marginBottom: '6px' }}>
+                    Request a Free Project Quote
+                  </h3>
+                  <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', margin: '0 0 28px' }}>
+                    Tell us what type of work you need doing and we’ll get back to you promptly.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="contact-trade-options">
+                    {[
+                      { key: 'painting', label: 'Painting & Decorating', Icon: PaintRoller },
+                      { key: 'carpentry', label: 'Carpentry / Joinery', Icon: Hammer }
+                    ].map(({ key, label, Icon }) => (
                       <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        style={{
-                          backgroundColor: 'var(--color-primary)',
-                          color: '#FFFFFF',
-                          padding: '14px 36px',
-                          borderRadius: 'var(--radius-full)',
-                          fontSize: '15px',
-                          fontWeight: '700',
-                          border: 'none',
-                          cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          boxShadow: 'var(--shadow-primary)',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isSubmitting) e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)';
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isSubmitting) e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                        }}
+                        key={key}
+                        type="button"
+                        onClick={() => router.visit(`/find-tradesperson?trade=${key}`)}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px', padding: '36px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-xl)', background: '#fff', cursor: 'pointer', fontSize: '15px', fontWeight: 700, color: 'var(--color-text-main)' }}
                       >
-                        {isSubmitting ? (
-                          <span>Sending Details...</span>
-                        ) : (
-                          <>
-                            <Send size={16} />
-                            <span>Request Free Quote</span>
-                          </>
-                        )}
+                        <Icon size={42} strokeWidth={2} color="var(--color-primary)" />
+                        <span>{label}</span>
                       </button>
-                    </div>
-
-                  </form>
-                )}
+                    ))}
+                  </div>
+                </div>
               </div>
             </ScrollReveal>
 

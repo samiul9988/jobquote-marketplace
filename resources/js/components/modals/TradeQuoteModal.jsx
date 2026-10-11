@@ -36,8 +36,8 @@ export default function TradeQuoteModal({ isOpen, onClose }) {
         <p style={{ fontSize: '15px', margin: '0 0 20px', color: '#475569' }}>What type of work do you need doing?</p>
         <div className="trade-quote-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', minWidth: 0 }}>
           {[
-            { key: 'carpentry', label: 'Carpentry / Joinery', Icon: Hammer },
-            { key: 'painting', label: 'Painting & Decorating', Icon: PaintRoller }
+            { key: 'painting', label: 'Painting & Decorating', Icon: PaintRoller },
+            { key: 'carpentry', label: 'Carpentry / Joinery', Icon: Hammer }
           ].map(({ key, label, Icon }) => (
             <button
               key={key}

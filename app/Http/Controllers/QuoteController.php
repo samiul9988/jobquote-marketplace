@@ -53,6 +53,8 @@ class QuoteController extends Controller
             'email' => 'required|email|max:255',
             'address' => 'nullable|string|max:500',
             'postcode' => 'required|string|max:10',
+            'billingAddress' => 'nullable|string|max:500',
+            'billingPostcode' => 'nullable|string|max:10',
         ]);
 
         $answers = json_decode($request->input('answers'), true);
@@ -73,11 +75,16 @@ class QuoteController extends Controller
             $lines[] = 'Details: ' . $request->input('description');
         }
 
+        $billingAddress = $validated['billingAddress'] ?? $validated['address'];
+        $billingPostcode = $validated['billingPostcode'] ?? $validated['postcode'];
+
         $customer = $this->findOrCreateCustomer([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
             'address' => $validated['address'],
+            'billing_address' => $billingAddress,
+            'billing_postcode' => $billingPostcode,
         ], 'Find a Tradesperson');
 
         Quote::create([
@@ -87,6 +94,8 @@ class QuoteController extends Controller
             'phone' => $validated['phone'],
             'address' => $validated['address'],
             'postcode' => $validated['postcode'],
+            'billing_address' => $billingAddress,
+            'billing_postcode' => $billingPostcode,
             'service' => $request->input('trade'),
             'message' => implode("\n", $lines),
             'details' => $answers,
@@ -195,6 +204,8 @@ class QuoteController extends Controller
                 'email' => $email !== '' ? $email : null,
                 'phone' => $phone !== '' ? $phone : null,
                 'address' => $data['address'] ?? null,
+                'billing_address' => $data['billing_address'] ?? null,
+                'billing_postcode' => $data['billing_postcode'] ?? null,
                 'status' => 'Lead',
                 'source' => $source,
             ]);
@@ -221,6 +232,12 @@ class QuoteController extends Controller
         }
         if (!empty($data['address']) && empty($customer->address)) {
             $updates['address'] = $data['address'];
+        }
+        if (!empty($data['billing_address']) && empty($customer->billing_address)) {
+            $updates['billing_address'] = $data['billing_address'];
+        }
+        if (!empty($data['billing_postcode']) && empty($customer->billing_postcode)) {
+            $updates['billing_postcode'] = $data['billing_postcode'];
         }
         if (!empty($updates)) {
             $customer->update($updates);

@@ -289,6 +289,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     email: '',
     phone: '',
     address: '',
+    billing_address: '',
     status: 'Lead',
     credit_limit: 0
   });
@@ -336,7 +337,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
   const openAddCustomerModal = () => {
     setEditingCustomer(null);
     customerForm.reset();
-    customerForm.setData({ name: '', email: '', phone: '', address: '', status: 'Lead', credit_limit: 0 });
+    customerForm.setData({ name: '', email: '', phone: '', address: '', billing_address: '', status: 'Lead', credit_limit: 0 });
     setIsCustomerModalOpen(true);
   };
 
@@ -347,6 +348,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       email: customer.email || '',
       phone: customer.phone || '',
       address: customer.address || '',
+      billing_address: customer.billing_address || '',
       status: customer.status || 'Lead',
       credit_limit: customer.credit_limit || 0
     });
@@ -3020,6 +3022,12 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                         <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{[selectedItem.address, selectedItem.postcode].filter(Boolean).join(', ') || 'N/A'}</span>
                       </div>
                     )}
+                    {inboxSubTab === 'quotes' && selectedItem.details && (selectedItem.billing_address || selectedItem.billing_postcode) && (
+                      <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                        <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Billing Address / Postcode</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{[selectedItem.billing_address, selectedItem.billing_postcode].filter(Boolean).join(', ') || 'N/A'}</span>
+                      </div>
+                    )}
 
                     {inboxSubTab === 'quotes' && selectedItem.details ? (
                       <>
@@ -3194,13 +3202,14 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
     };
 
     const exportCustomersToCsv = () => {
-      const headers = ['Customer ID', 'Name', 'Email', 'Phone', 'Address', 'Status', 'Source', 'Quote Count', 'Total Purchased', 'Total Paid', 'Due Balance', 'Credit Limit', 'Created At'];
+      const headers = ['Customer ID', 'Name', 'Email', 'Phone', 'Address', 'Billing Address', 'Status', 'Source', 'Quote Count', 'Total Purchased', 'Total Paid', 'Due Balance', 'Credit Limit', 'Created At'];
       const rows = filteredCustomers.map(c => [
         c.customer_code || '',
         c.name || '',
         c.email || '',
         c.phone || '',
         c.address || '',
+        c.billing_address || '',
         c.status || '',
         c.source || '',
         (c.quotes || []).length,
@@ -3230,6 +3239,7 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
       { key: 'email', label: 'Email' },
       { key: 'phone', label: 'Phone' },
       { key: 'address', label: 'Address' },
+      { key: 'billing_address', label: 'Billing Address' },
       { key: 'status', label: 'Status' },
       { key: 'due', label: 'Due Balance' },
     ];
@@ -3384,6 +3394,9 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                           <td title={customer.address || ''} style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {customer.address || '—'}
                           </td>
+                          <td title={customer.billing_address || ''} style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', color: '#475569', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {customer.billing_address || '—'}
+                          </td>
                           <td style={{ padding: '10px 12px', borderBottom: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0' }}>
                             <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700', backgroundColor: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
                               {customer.status}
@@ -3446,8 +3459,26 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
         {/* Customer View/Print Modal */}
         {selectedCustomer && (
-          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+          <div className="print-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
             <div className="print-area" style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '760px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+              {/* Print-only Letterhead */}
+              <div className="print-only-letterhead" style={{ display: 'none' }}>
+                <div style={{ height: '6px', background: 'linear-gradient(90deg, #1F295B 0%, #3B82F6 55%, #93C5FD 100%)', marginBottom: '14px' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                    {settings?.logo ? (
+                      <img src={settings.logo} style={{ width: '46px', height: '46px', objectFit: 'contain', display: 'block' }} alt="Logo" />
+                    ) : (
+                      <div style={{ width: '40px', height: '40px', backgroundColor: '#F37021', borderRadius: '50%', flexShrink: 0 }}></div>
+                    )}
+                    <div>
+                      <h1 style={{ fontSize: '19px', fontWeight: '900', color: '#1F295B', margin: 0, letterSpacing: '0.3px' }}>SK HOME SOLUTIONS LIMITED</h1>
+                      <p style={{ fontSize: '10px', fontWeight: '600', fontStyle: 'italic', color: '#475569', margin: '2px 0 0 0' }}>Painting &amp; Decorating | Carpentry &amp; Joinery</p>
+                    </div>
+                  </div>
+                  <div style={{ width: '100%', borderBottom: '1px solid #CBD5E1', margin: '10px 0 0 0' }} />
+                </div>
+              </div>
               {/* Detail Header */}
               <div className="no-print" style={{ padding: '24px 32px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -3516,6 +3547,12 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><MapPin size={12} /> Address</span>
                     <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{selectedCustomer.address || 'N/A'}</span>
                   </div>
+                  {selectedCustomer.billing_address && (
+                    <div style={{ padding: '16px', border: '1px solid #E2E8F0', borderRadius: '10px', backgroundColor: '#F8FAFC' }}>
+                      <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}><MapPin size={12} /> Billing Address</span>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{[selectedCustomer.billing_address, selectedCustomer.billing_postcode].filter(Boolean).join(', ')}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Purchase & Credit Summary */}
@@ -3645,18 +3682,36 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
             .print-area, .print-area * {
               visibility: visible;
             }
-            .print-area {
-              position: fixed !important;
+            .print-modal-overlay {
+              position: absolute !important;
               top: 0 !important;
               left: 0 !important;
+              right: auto !important;
+              bottom: auto !important;
+              display: block !important;
+              padding: 0 !important;
+              background: none !important;
+              backdrop-filter: none !important;
+            }
+            .print-area {
+              display: block !important;
+              position: static !important;
               width: 100% !important;
               max-width: 100% !important;
               max-height: none !important;
+              overflow: visible !important;
               box-shadow: none !important;
               border-radius: 0 !important;
             }
+            .print-area * {
+              max-height: none !important;
+              overflow: visible !important;
+            }
             .no-print {
               display: none !important;
+            }
+            .print-only-letterhead {
+              display: block !important;
             }
           }
         `}</style>
@@ -3756,6 +3811,16 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                   placeholder="Enter address"
                   value={customerForm.data.address}
                   onChange={(e) => customerForm.setData('address', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Billing Address</label>
+                <textarea
+                  rows={3}
+                  placeholder="Enter billing address"
+                  value={customerForm.data.billing_address}
+                  onChange={(e) => customerForm.setData('billing_address', e.target.value)}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
                 />
               </div>
@@ -4782,8 +4847,26 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
 
         {/* Project View/Print Modal */}
         {selectedWorkProject && (
-          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+          <div className="print-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
             <div className="print-area" style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '760px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+              {/* Print-only Letterhead */}
+              <div className="print-only-letterhead" style={{ display: 'none' }}>
+                <div style={{ height: '6px', background: 'linear-gradient(90deg, #1F295B 0%, #3B82F6 55%, #93C5FD 100%)', marginBottom: '14px' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                    {settings?.logo ? (
+                      <img src={settings.logo} style={{ width: '46px', height: '46px', objectFit: 'contain', display: 'block' }} alt="Logo" />
+                    ) : (
+                      <div style={{ width: '40px', height: '40px', backgroundColor: '#F37021', borderRadius: '50%', flexShrink: 0 }}></div>
+                    )}
+                    <div>
+                      <h1 style={{ fontSize: '19px', fontWeight: '900', color: '#1F295B', margin: 0, letterSpacing: '0.3px' }}>SK HOME SOLUTIONS LIMITED</h1>
+                      <p style={{ fontSize: '10px', fontWeight: '600', fontStyle: 'italic', color: '#475569', margin: '2px 0 0 0' }}>Painting &amp; Decorating | Carpentry &amp; Joinery</p>
+                    </div>
+                  </div>
+                  <div style={{ width: '100%', borderBottom: '1px solid #CBD5E1', margin: '10px 0 0 0' }} />
+                </div>
+              </div>
               <div style={{ padding: '24px 32px', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                   <div>
@@ -4907,18 +4990,36 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
             .print-area, .print-area * {
               visibility: visible;
             }
-            .print-area {
-              position: fixed !important;
+            .print-modal-overlay {
+              position: absolute !important;
               top: 0 !important;
               left: 0 !important;
+              right: auto !important;
+              bottom: auto !important;
+              display: block !important;
+              padding: 0 !important;
+              background: none !important;
+              backdrop-filter: none !important;
+            }
+            .print-area {
+              display: block !important;
+              position: static !important;
               width: 100% !important;
               max-width: 100% !important;
               max-height: none !important;
+              overflow: visible !important;
               box-shadow: none !important;
               border-radius: 0 !important;
             }
+            .print-area * {
+              max-height: none !important;
+              overflow: visible !important;
+            }
             .no-print {
               display: none !important;
+            }
+            .print-only-letterhead {
+              display: block !important;
             }
           }
         `}</style>
@@ -6642,6 +6743,16 @@ export default function DashboardPage({ quotes = [], messages = [], jobPosts = [
                     type="text"
                     value={customerForm.data.address}
                     onChange={(e) => customerForm.setData('address', e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Billing Address</label>
+                  <input
+                    type="text"
+                    value={customerForm.data.billing_address}
+                    onChange={(e) => customerForm.setData('billing_address', e.target.value)}
                     style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
                   />
                 </div>

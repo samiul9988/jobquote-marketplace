@@ -110,7 +110,7 @@ export default function ServicesSection({ onSelectService }) {
                   <Button
                     variant="secondary"
                     fullWidth
-                    href={`/services/${service.service_id}`} inertiaLink={true}
+                    href={`/services/${service.id}`} inertiaLink={true}
                     icon={ArrowRight}
                     iconPosition="right"
                   >

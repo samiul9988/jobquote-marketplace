@@ -14,6 +14,7 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
+            'billing_address' => 'nullable|string|max:255',
             'status' => 'nullable|in:Lead,Active,Inactive',
             'credit_limit' => 'nullable|numeric|min:0',
         ]);
@@ -23,6 +24,7 @@ class CustomerController extends Controller
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'address' => $validated['address'] ?? null,
+            'billing_address' => $validated['billing_address'] ?? null,
             'status' => $validated['status'] ?? 'Lead',
             'credit_limit' => $validated['credit_limit'] ?? 0,
             'source' => 'Manual',
@@ -47,6 +49,7 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
+            'billing_address' => 'nullable|string|max:255',
             'status' => 'nullable|in:Lead,Active,Inactive',
             'credit_limit' => 'nullable|numeric|min:0',
         ]);
@@ -56,6 +59,7 @@ class CustomerController extends Controller
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'address' => $validated['address'] ?? null,
+            'billing_address' => $validated['billing_address'] ?? null,
             'status' => $validated['status'] ?? $customer->status,
             'credit_limit' => $validated['credit_limit'] ?? $customer->credit_limit,
         ]);
