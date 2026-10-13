@@ -123,4 +123,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Activation / Maintenance Toggle Secret
+    |--------------------------------------------------------------------------
+    |
+    | Lets the maintenance-mode toggle page (/dashboard/activation) be reached
+    | by anyone holding this secret, even when logged out or when login itself
+    | is broken — so an admin can always switch the site back on.
+    |
+    */
+
+    'activation_secret' => env('ACTIVATION_SECRET'),
+
 ];

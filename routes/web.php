@@ -26,6 +26,13 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PaymentAccountController;
+use App\Http\Controllers\MaintenanceController;
+
+Route::middleware(\App\Http\Middleware\AllowActivationAccess::class)->prefix('dashboard/activation')->group(function () {
+    Route::get('/', [MaintenanceController::class, 'show'])->name('maintenance.show');
+    Route::post('/toggle', [MaintenanceController::class, 'toggle'])->name('maintenance.toggle');
+    Route::get('/preview', [MaintenanceController::class, 'preview'])->name('maintenance.preview');
+});
 
 Route::post('/quotes', [QuoteController::class, 'store']);
 Route::post('/find-tradesperson', [QuoteController::class, 'storeTrade']);
